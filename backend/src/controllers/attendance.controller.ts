@@ -4,35 +4,38 @@ import { AuthRequest } from '../middlewares/auth.middleware.js';
 import jwt from 'jsonwebtoken';
 
 export const markAttendance = async (req: AuthRequest, res: Response) => {
-  const { qrToken } = req.body;
+  // 1. Support both 'qrToken' (old) and 'sessionId' (new) from frontend
+  const { qrToken, sessionId: rawSessionId } = req.body;
+  const tokenToVerify = qrToken || rawSessionId; 
+  
   const studentId = req.user?.profileId; 
 
-  // 1. Initial Validation
   if (!studentId || req.user?.role !== 'STUDENT') {
     return res.status(403).json({ error: "Unauthorized: Only students can mark attendance" });
   }
 
-  if (!qrToken) {
+  if (!tokenToVerify) {
+    // This matches the error you were seeing
     return res.status(400).json({ error: "QR Code token is required" });
   }
 
   try {
     // 2. Verify the QR JWT
-    // Use the same secret the lecturer used to generate the code
     const secret = process.env.QR_SECRET || 'fallback_qr_secret';
-    const decoded: any = jwt.verify(qrToken, secret);
-    const { sessionId } = decoded;
+    const decoded: any = jwt.verify(tokenToVerify, secret);
+    
+    // Extract sessionId from the JWT payload
+    const sessionIdFromToken = decoded.sessionId;
 
     // 3. Fetch session and verify status
     const session = await prisma.session.findUnique({
-      where: { id: sessionId },
+      where: { id: sessionIdFromToken },
     });
 
     if (!session) {
       return res.status(404).json({ error: "This attendance session no longer exists" });
     }
 
-    // Check if session is closed or expired
     const now = new Date();
     const isExpired = now > new Date(session.endTime);
     
@@ -41,31 +44,29 @@ export const markAttendance = async (req: AuthRequest, res: Response) => {
     }
 
     // 4. Record Attendance
-    // Relying on the @unique([sessionId, studentId]) constraint in your Prisma schema
     const attendance = await prisma.attendance.create({
       data: {
-        sessionId,
+        sessionId: sessionIdFromToken,
         studentId,
         status: "PRESENT",
-        timestamp: now // Explicitly setting current time
+        timestamp: now 
       }
     });
 
-    res.status(201).json({ 
+    return res.status(201).json({ 
       message: "Attendance marked successfully! ✅", 
-      course: session.courseCode,
+      courseCode: session.courseCode, // Changed to courseCode to match your frontend status text
       time: attendance.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     });
 
   } catch (error: any) {
-    // Handle Prisma unique constraint (Student already present)
+    // Unique constraint: Student already present
     if (error.code === 'P2002') {
       return res.status(400).json({ error: "You've already signed in for this class!" });
     }
 
-    // Handle JWT specific errors
     if (error.name === 'TokenExpiredError') {
-      return res.status(401).json({ error: "QR code expired. Please scan the current code on the screen." });
+      return res.status(401).json({ error: "QR code expired. Please scan the current code." });
     }
 
     if (error.name === 'JsonWebTokenError') {
@@ -73,6 +74,6 @@ export const markAttendance = async (req: AuthRequest, res: Response) => {
     }
 
     console.error("Attendance Error:", error);
-    res.status(500).json({ error: "An error occurred while marking attendance" });
+    return res.status(500).json({ error: "An error occurred while marking attendance" });
   }
 };
