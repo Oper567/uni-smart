@@ -29,7 +29,7 @@ export default function NewSession() {
     if (qrToken && sessionId) {
       interval = setInterval(async () => {
         try {
-          const res = await api.get(`/session/count/${sessionId}`);
+          const res = await api.get(`/session/${sessionId}/count`);
           setAttendanceCount(res.data.count);
         } catch (err) {
           console.error("Polling error", err);
@@ -181,8 +181,8 @@ export default function NewSession() {
                   />
                 </motion.div>
                 
-                <p className="text-slate-400 text-[10px] font-medium uppercase tracking-widest">
-                  Scanning active for 15 minutes
+                <p className="text-slate-400 text-[10px] font-medium uppercase tracking-widest mt-4">
+                  Scanning active for current session
                 </p>
               </div>
 
@@ -190,7 +190,7 @@ export default function NewSession() {
               <motion.button 
                 whileTap={{ scale: 0.95 }}
                 onClick={() => router.push('/lecturer/dashboard')}
-                className="w-full bg-blue-600 text-white py-6 rounded-[2.5rem] font-black text-lg flex items-center justify-center gap-3 shadow-xl shadow-blue-100 transition-all"
+                className="w-full bg-blue-600 text-white py-6 rounded-[2.5rem] font-black text-lg flex items-center justify-center gap-3 shadow-xl shadow-blue-200 transition-all"
               >
                 <CheckCircle2 size={22} /> End & View Results
               </motion.button>
