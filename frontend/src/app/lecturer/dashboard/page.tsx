@@ -71,9 +71,9 @@ export default function LecturerDashboard() {
     try {
       const response = await api.get(`/session/export/${type}/${sessionId}`, { 
         responseType: 'blob',
+        timeout: 60000, // 👈 Give it 60 seconds to generate
         headers: { 'Cache-Control': 'no-cache' } 
       });
-
       // EXPORT FIX: Check if the blob is actually a JSON error (e.g. "No records found")
       if (response.data.type === 'application/json') {
         const text = await response.data.text();
