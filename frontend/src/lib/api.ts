@@ -1,7 +1,8 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001/api',
+  // Priority 1: Vercel Env Var | Priority 2: Hardcoded Production | Priority 3: Local Dev
+  baseURL: process.env.NEXT_PUBLIC_API_URL || 'https://uni-smart-backend.onrender.com/api',
   headers: {
     'Content-Type': 'application/json',
   },
@@ -18,9 +19,7 @@ api.interceptors.request.use(
     }
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
 // 2. Response Interceptor: Handle Global Errors (Like Expired Tokens)
@@ -32,7 +31,11 @@ api.interceptors.response.use(
       if (error.response?.status === 401) {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
-        window.location.href = '/login'; 
+        
+        // Only redirect if we aren't already on the login page to avoid loops
+        if (window.location.pathname !== '/login') {
+          window.location.href = '/login'; 
+        }
       }
     }
     return Promise.reject(error);
