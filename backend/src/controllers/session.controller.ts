@@ -41,13 +41,13 @@ export const startSession = async (req: AuthRequest, res: Response) => {
       { expiresIn: "15m" }
     );
 
-    const updatedSession = await prisma.session.update({
+    await prisma.session.update({
       where: { id: session.id },
       data: { qrCode: token },
     });
 
     res.status(201).json({
-      token: updatedSession.qrCode,
+      token,
       sessionId: session.id,
       expiresAt: expiryTime,
     });
@@ -56,7 +56,7 @@ export const startSession = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// --- 2. CLOSE SESSION MANUALLY ---
+// --- 2. CLOSE SESSION ---
 export const closeSession = async (req: AuthRequest, res: Response) => {
   const { sessionId } = req.params;
   try {
@@ -70,20 +70,59 @@ export const closeSession = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// --- 3. GET SESSION COUNT (FOR LECTURER DASHBOARD) ---
+// --- 3. GET LECTURER SESSIONS (MISSING MEMBER FIX) ---
+export const getLecturerSessions = async (req: Request, res: Response) => {
+  const { lecturerId } = req.params;
+  try {
+    const sessions = await prisma.session.findMany({
+      where: { lecturerId },
+      orderBy: { createdAt: "desc" },
+    });
+    res.json(sessions);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch sessions" });
+  }
+};
+
+// --- 4. GET SESSION COUNT ---
 export const getSessionCount = async (req: Request, res: Response) => {
   const { sessionId } = req.params;
   try {
-    const count = await prisma.attendance.count({
-      where: { sessionId },
-    });
+    const count = await prisma.attendance.count({ where: { sessionId } });
     res.json({ count });
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch count" });
   }
 };
 
-// --- 4. EXPORT PDF ---
+// --- 5. EXPORT CSV (MISSING MEMBER FIX) ---
+export const exportAttendanceCSV = async (req: AuthRequest, res: Response) => {
+  const { sessionId } = req.params;
+  try {
+    const attendance = await prisma.attendance.findMany({
+      where: { sessionId },
+      include: { student: { include: { user: true } }, session: true },
+    });
+
+    if (attendance.length === 0) return res.status(404).json({ error: "No records" });
+
+    const data = attendance.map((rec) => ({
+      "Student Name": rec.student.user.name,
+      "Matric No": rec.student.matricNo,
+      Department: rec.student.user.department,
+      "Time In": rec.timestamp.toLocaleString(),
+    }));
+
+    const csv = new Parser().parse(data);
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader("Content-Disposition", `attachment; filename=Attendance.csv`);
+    return res.status(200).send(csv);
+  } catch (error) {
+    res.status(500).json({ error: "CSV Export failed" });
+  }
+};
+
+// --- 6. EXPORT PDF ---
 export const exportAttendancePDF = async (req: AuthRequest, res: Response) => {
   const { sessionId } = req.params;
   try {
@@ -93,12 +132,12 @@ export const exportAttendancePDF = async (req: AuthRequest, res: Response) => {
       orderBy: { student: { user: { name: "asc" } } },
     });
 
-    if (attendance.length === 0) return res.status(404).json({ error: "No records" });
+    if (attendance.length === 0) return res.status(404).json({ error: "No student records found" });
 
     const doc = new jsPDF();
     doc.setFontSize(20);
     doc.setTextColor(37, 99, 235);
-    doc.text(`Report: ${attendance[0].session.courseCode}`, 14, 22);
+    doc.text(`Attendance Report: ${attendance[0].session.courseCode}`, 14, 22);
 
     const tableData = attendance.map((rec) => [
       rec.student.user.name,
@@ -109,7 +148,7 @@ export const exportAttendancePDF = async (req: AuthRequest, res: Response) => {
 
     (doc as any).autoTable({
       startY: 45,
-      head: [["Name", "Matric No", "Dept", "Time"]],
+      head: [["Full Name", "Matric Number", "Department", "Sign-in Time"]],
       body: tableData,
       headStyles: { fillColor: [37, 99, 235] },
     });
@@ -123,56 +162,41 @@ export const exportAttendancePDF = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// --- 5. MARK ATTENDANCE (STUDENT SCAN) ---
+// --- 7. MARK ATTENDANCE (STUDENT) ---
 export const markAttendance = async (req: AuthRequest, res: Response) => {
   const { token } = req.body;
   const studentId = req.user?.profileId;
-
-  if (!token) return res.status(400).json({ error: "QR Token is required" });
 
   try {
     const decoded: any = jwt.verify(token, process.env.QR_SECRET || "fallback_qr_secret");
     const { sessionId, courseCode } = decoded;
 
     const session = await prisma.session.findUnique({ where: { id: sessionId } });
-    if (!session || !session.isActive) {
-      return res.status(400).json({ error: "Session is inactive." });
-    }
+    if (!session || !session.isActive) return res.status(400).json({ error: "Session expired" });
 
-    // ✅ FIX: Using the correct Prisma unique name based on your schema
     await prisma.attendance.upsert({
-      where: {
-        sessionId_studentId: {
-          sessionId: sessionId,
-          studentId: studentId!,
-        },
-      },
+      where: { sessionId_studentId: { sessionId, studentId: studentId! } },
       update: {}, 
-      create: {
-        studentId: studentId!,
-        sessionId: sessionId,
-      },
+      create: { studentId: studentId!, sessionId },
     });
 
-    // Calculate current health
-    const totalSessions = await prisma.session.count({ where: { courseCode } });
-    const attendedCount = await prisma.attendance.count({
+    const total = await prisma.session.count({ where: { courseCode } });
+    const attended = await prisma.attendance.count({
       where: { studentId: studentId!, session: { courseCode } },
     });
 
     return res.status(200).json({
       courseCode,
-      percentage: Math.round((attendedCount / totalSessions) * 100),
+      percentage: Math.round((attended / total) * 100),
     });
   } catch (error) {
     return res.status(401).json({ error: "Invalid token" });
   }
 };
 
-// --- 6. STUDENT DASHBOARD STATS ---
+// --- 8. STUDENT STATS ---
 export const getStudentStats = async (req: AuthRequest, res: Response) => {
   const studentId = req.user?.profileId;
-
   try {
     const sessions = await prisma.session.findMany({
       distinct: ['courseCode'],
@@ -184,16 +208,10 @@ export const getStudentStats = async (req: AuthRequest, res: Response) => {
       const attended = await prisma.attendance.count({
         where: { studentId: studentId!, session: { courseCode: s.courseCode } }
       });
-      return {
-        code: s.courseCode,
-        attended,
-        total,
-        percentage: total > 0 ? Math.round((attended / total) * 100) : 0
-      };
+      return { code: s.courseCode, attended, total, percentage: total > 0 ? Math.round((attended / total) * 100) : 0 };
     }));
-
     res.json(stats);
   } catch (error) {
-    res.status(500).json({ error: "Failed to fetch stats" });
+    res.status(500).json({ error: "Failed stats" });
   }
 };
