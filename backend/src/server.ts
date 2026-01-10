@@ -16,18 +16,25 @@ dotenv.config();
 import authRoutes from './routes/auth.routes.js';
 import sessionRoutes from './routes/session.routes.js';
 import { markAttendance } from './controllers/attendance.controller.js';
-// ✅ FIXED: Using 'authenticate' instead of 'authenticateJWT'
 import { authenticate, authorizeRole } from './middlewares/auth.middleware.js';
 import { prisma } from './lib/prisma.js';
 
 const app = express();
 
 // 4. MIDDLEWARE
+
+// Updated Helmet for Production
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      connectSrc: ["'self'", "http://localhost:5001", "ws://localhost:5501"],
+      // Added your Render URLs to the allowed connect sources
+      connectSrc: [
+        "'self'", 
+        "http://localhost:5001", 
+        "https://uni-smart.onrender.com", 
+        "https://uni-smart-backend.onrender.com"
+      ],
       scriptSrc: ["'self'", "'unsafe-inline'"],
       objectSrc: ["'none'"],
       upgradeInsecureRequests: [],
@@ -35,7 +42,28 @@ app.use(helmet({
   }
 }));
 
-app.use(cors({ origin: 'http://localhost:3000' }));
+// ✅ FIXED CORS: Allowing both local and production URLs
+const allowedOrigins = [
+  'http://localhost:3000',
+  'https://uni-smart.onrender.com' // Your frontend URL
+];
+
+app.use(cors({
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.log('❌ CORS Blocked for origin:', origin);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
 app.use(express.json()); 
 app.use(express.urlencoded({ extended: true }));
 
@@ -44,7 +72,6 @@ app.use('/api/auth', authRoutes);
 app.use('/api/session', sessionRoutes);
 
 // Attendance Route
-// ✅ FIXED: Updated function call here as well
 app.post('/api/attendance/mark', authenticate, authorizeRole(['STUDENT']), markAttendance);
 
 // Enhanced Health Check
@@ -72,9 +99,9 @@ const PORT = process.env.PORT || 5001;
 const server = app.listen(Number(PORT), '0.0.0.0', () => {
   console.log(`
     🚀 SYSTEM ONLINE
-    ✅ Server running on http://localhost:${PORT}
-    🐘 Database: Supabase PostgreSQL (Prisma 7)
-    🔐 Security: JWT + Role-based Access Active (Helmet Enabled)
+    ✅ Server running on port ${PORT}
+    🐘 Database: Supabase PostgreSQL
+    🔐 Security: CORS Updated for Production
   `);
 });
 
