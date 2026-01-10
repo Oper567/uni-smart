@@ -3,7 +3,7 @@ import { prisma } from "../lib/prisma.js";
 import { AuthRequest } from "../middlewares/auth.middleware.js";
 import { Parser } from "json2csv";
 import { jsPDF } from "jspdf";
-import "jspdf-autotable";
+import autoTable from "jspdf-autotable"; // Explicit import for Node compatibility
 import jwt from "jsonwebtoken";
 
 // --- 1. START SESSION ---
@@ -52,6 +52,7 @@ export const startSession = async (req: AuthRequest, res: Response) => {
       expiresAt: expiryTime,
     });
   } catch (error) {
+    console.error("Start Session Error:", error);
     res.status(500).json({ error: "Failed to initialize session" });
   }
 };
@@ -59,7 +60,15 @@ export const startSession = async (req: AuthRequest, res: Response) => {
 // --- 2. CLOSE SESSION ---
 export const closeSession = async (req: AuthRequest, res: Response) => {
   const { sessionId } = req.params;
+  const profileId = req.user?.profileId;
+
   try {
+    const session = await prisma.session.findUnique({ where: { id: sessionId } });
+    if (!session) return res.status(404).json({ error: "Session not found" });
+    
+    // Security check: Only the owner can close
+    if (session.lecturerId !== profileId) return res.status(403).json({ error: "Unauthorized" });
+
     await prisma.session.update({
       where: { id: sessionId },
       data: { isActive: false },
@@ -113,7 +122,8 @@ export const exportAttendanceCSV = async (req: AuthRequest, res: Response) => {
       "Time In": rec.timestamp.toLocaleString(),
     }));
 
-    const csv = new Parser().parse(data);
+    // withBOM ensures Excel handles characters correctly
+    const csv = new Parser({ withBOM: true }).parse(data);
     res.setHeader("Content-Type", "text/csv");
     res.setHeader("Content-Disposition", `attachment; filename=Attendance_${attendance[0].session.courseCode}.csv`);
     return res.status(200).send(csv);
@@ -135,6 +145,8 @@ export const exportAttendancePDF = async (req: AuthRequest, res: Response) => {
     if (attendance.length === 0) return res.status(404).json({ error: "No student records found" });
 
     const doc = new jsPDF();
+    
+    // Header Styling
     doc.setFontSize(20);
     doc.setTextColor(37, 99, 235);
     doc.text(`Attendance Report: ${attendance[0].session.courseCode}`, 14, 22);
@@ -146,19 +158,27 @@ export const exportAttendancePDF = async (req: AuthRequest, res: Response) => {
       new Date(rec.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     ]);
 
-    (doc as any).autoTable({
-      startY: 45,
+    // Use explicit autoTable function call for Node support
+    autoTable(doc, {
+      startY: 35,
       head: [["Full Name", "Matric Number", "Department", "Sign-in Time"]],
       body: tableData,
       headStyles: { fillColor: [37, 99, 235], fontSize: 11 },
       alternateRowStyles: { fillColor: [248, 250, 255] },
+      styles: { font: "helvetica" }
     });
 
-    const pdfBuffer = Buffer.from(doc.output("arraybuffer"));
+    // Capture output as Buffer
+    const pdfOutput = doc.output("arraybuffer");
+    const buffer = Buffer.from(new Uint8Array(pdfOutput));
+
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `attachment; filename=Attendance_${attendance[0].session.courseCode}.pdf`);
-    return res.status(200).send(pdfBuffer);
+    res.setHeader("Content-Length", buffer.length);
+    
+    return res.status(200).send(buffer);
   } catch (error) {
+    console.error("PDF Export error details:", error);
     res.status(500).json({ error: "PDF Export failed" });
   }
 };
@@ -188,18 +208,17 @@ export const markAttendance = async (req: AuthRequest, res: Response) => {
 
     return res.status(200).json({
       courseCode,
-      percentage: Math.round((attended / total) * 100),
+      percentage: total > 0 ? Math.round((attended / total) * 100) : 0,
     });
   } catch (error) {
     return res.status(401).json({ error: "Invalid or expired token" });
   }
 };
 
-// --- 8. STUDENT STATS (FILTERED) ---
+// --- 8. STUDENT STATS ---
 export const getStudentStats = async (req: AuthRequest, res: Response) => {
   const studentId = req.user?.profileId;
   try {
-    // Only fetch courses where this specific student has ever attended
     const studentAttendances = await prisma.attendance.findMany({
       where: { studentId: studentId! },
       select: { session: { select: { courseCode: true } } },
