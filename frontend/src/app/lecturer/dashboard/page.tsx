@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   PlusCircle, LogOut, Users, BookOpen, Layout, 
@@ -15,25 +15,17 @@ export default function LecturerDashboard() {
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState<string | null>(null);
 
-  useEffect(() => {
-    const storedUser = localStorage.getItem('user');
-    if (!storedUser) {
-      router.push('/login');
-      return;
-    }
-    const parsedUser = JSON.parse(storedUser);
-    setUser(parsedUser);
-    fetchSessions(parsedUser.profileId);
-  }, [router]);
-
-  const fetchSessions = async (lecturerId: string) => {
+  // Memoized fetch function to reuse in useEffect and manual refresh
+  const fetchSessions = useCallback(async (lecturerId: string) => {
     setLoading(true);
     try {
-      // Fetch sessions and student counts in parallel
       const res = await api.get(`/session/lecturer/${lecturerId}`);
+      
+      // Fetch fresh student counts for each session
       const sessionsWithCounts = await Promise.all(res.data.map(async (s: any) => {
         try {
-          const countRes = await api.get(`/session/count/${s.id}`);
+          // Added cache-busting timestamp (?t=...) to ensure the browser gets real-time data
+          const countRes = await api.get(`/session/count/${s.id}?t=${Date.now()}`);
           return { ...s, count: countRes.data.count };
         } catch {
           return { ...s, count: 0 };
@@ -45,7 +37,26 @@ export default function LecturerDashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    const storedUser = localStorage.getItem('user');
+    if (!storedUser) {
+      router.push('/login');
+      return;
+    }
+    const parsedUser = JSON.parse(storedUser);
+    setUser(parsedUser);
+    
+    // Initial fetch
+    fetchSessions(parsedUser.profileId);
+
+    // SYNC FIX: Re-fetch data whenever the user returns to this tab (e.g. after finishing a session)
+    const handleFocus = () => fetchSessions(parsedUser.profileId);
+    window.addEventListener('focus', handleFocus);
+    
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [router, fetchSessions]);
 
   const handleLogout = () => {
     localStorage.clear();
@@ -56,29 +67,40 @@ export default function LecturerDashboard() {
     setExporting(`${sessionId}-${type}`);
     try {
       const response = await api.get(`/session/export/${type}/${sessionId}`, { 
-        responseType: 'blob' 
+        responseType: 'blob',
+        headers: { 'Cache-Control': 'no-cache' } // Force fresh file from server
       });
 
+      // EXPORT FIX: Check if the blob is actually a JSON error hidden as a file
+      if (response.data.type === 'application/json') {
+        const text = await response.data.text();
+        const errorData = JSON.parse(text);
+        throw new Error(errorData.error || "Session has no attendance records.");
+      }
+      
       const blobType = type === 'csv' ? 'text/csv' : 'application/pdf';
       const extension = type === 'csv' ? 'csv' : 'pdf';
       
       const blob = new Blob([response.data], { type: blobType });
+
+      // Safety check: if blob is tiny, it's likely an empty or corrupted file
+      if (blob.size < 50) throw new Error("File is empty. No attendance recorded yet.");
+
       const url = window.URL.createObjectURL(blob);
-      
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `${courseCode}_Attendance.${extension}`);
+      link.setAttribute('download', `${courseCode}_Attendance_${new Date().toISOString().split('T')[0]}.${extension}`);
       document.body.appendChild(link);
       link.click();
 
-      // Small delay to ensure the browser captures the stream before revocation
       setTimeout(() => {
         document.body.removeChild(link);
         window.URL.revokeObjectURL(url);
       }, 150);
       
-    } catch (err) {
-      alert(`Export failed. This session might not have any records.`);
+    } catch (err: any) {
+      console.error("Export Error:", err);
+      alert(err.message || `Export failed. This session might not have any records.`);
     } finally {
       setExporting(null);
     }
@@ -88,7 +110,6 @@ export default function LecturerDashboard() {
 
   return (
     <div className="min-h-screen bg-[#F8FAFF] text-slate-900 font-[family-name:var(--font-geist-sans)]">
-      {/* Blue Tinted Mobile Nav */}
       <nav className="sticky top-0 z-20 bg-white/70 backdrop-blur-xl border-b border-blue-50 px-6 py-4 flex justify-between items-center">
         <div className="flex items-center gap-2">
           <div className="bg-blue-600 p-2 rounded-xl text-white shadow-lg shadow-blue-200">
@@ -106,7 +127,6 @@ export default function LecturerDashboard() {
       </nav>
       
       <main className="p-6 space-y-8 pb-24">
-        {/* Welcome Header */}
         <header className="space-y-1">
           <div className="flex items-center justify-between">
              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-400">Lecturer Overview</span>
@@ -127,7 +147,6 @@ export default function LecturerDashboard() {
           </p>
         </header>
 
-        {/* Start Button */}
         <motion.button 
           whileHover={{ y: -2 }}
           whileTap={{ scale: 0.97 }}
@@ -141,14 +160,12 @@ export default function LecturerDashboard() {
           <ChevronRight size={20} className="opacity-60" />
         </motion.button>
 
-        {/* Stats Scroll */}
         <div className="flex gap-4 overflow-x-auto pb-4 -mx-6 px-6 no-scrollbar">
           <StatMiniCard label="Courses" value={user.courses?.length || 0} color="blue" />
           <StatMiniCard label="Sessions" value={sessions.length} color="indigo" />
           <StatMiniCard label="Status" value="Live" color="emerald" />
         </div>
 
-        {/* Recent Activity List */}
         <section className="space-y-4">
           <h3 className="font-black text-lg text-slate-700 flex items-center gap-2">
             <History size={20} className="text-blue-500" /> Recent Activity
@@ -171,7 +188,6 @@ export default function LecturerDashboard() {
                         <span className="bg-blue-50 text-blue-700 text-[10px] font-black px-3 py-1 rounded-lg uppercase tracking-wider">
                           {session.courseCode}
                         </span>
-                        {/* Student Count Badge */}
                         <span className="flex items-center gap-1 bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-1 rounded-lg">
                           <Users size={10} /> {session.count || 0}
                         </span>
