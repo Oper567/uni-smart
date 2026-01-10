@@ -2,11 +2,11 @@
   "name": "backend",
   "version": "1.0.0",
   "type": "module",
-  "main": "src/server.ts",
+  "main": "dist/server.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "tsc",
-    "start": "node dist/server.ts",
+    "build": "prisma generate && tsc",
+    "start": "node dist/server.js",
     "prisma:generate": "npx prisma generate",
     "prisma:push": "npx prisma db push"
   },
