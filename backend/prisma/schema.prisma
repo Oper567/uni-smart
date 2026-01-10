@@ -1,0 +1,72 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+}
+
+datasource db {
+  provider = "postgresql"
+  schemas  = ["public"]
+}
+
+model User {
+  id          String   @id @default(uuid())
+  email       String   @unique
+  password    String
+  name        String
+  role        String   // "STUDENT" or "LECTURER"
+  department  String   // 👈 Track user's department
+  createdAt   DateTime @default(now())
+
+  student     Student?
+  lecturer    Lecturer?
+
+  @@schema("public")
+}
+
+model Lecturer {
+  id          String   @id @default(uuid())
+  user        User     @relation(fields: [userId], references: [id])
+  userId      String   @unique
+  staffId     String   @unique
+  courses     String[] // 👈 Allowed course codes (e.g., ["DCOT205", "CSC101"])
+  sessions    Session[]
+
+  @@schema("public")
+}
+
+model Student {
+  id          String   @id @default(uuid())
+  user        User     @relation(fields: [userId], references: [id])
+  userId      String   @unique
+  matricNo    String   @unique
+  attendance  Attendance[]
+
+  @@schema("public")
+}
+
+model Session {
+  id          String   @id @default(uuid())
+  courseCode  String
+  qrCode      String   @unique 
+  isActive    Boolean  @default(true)
+  endTime     DateTime 
+  createdAt   DateTime @default(now())
+  lecturer    Lecturer @relation(fields: [lecturerId], references: [id])
+  lecturerId  String
+  attendance  Attendance[]
+
+  @@schema("public")
+}
+
+model Attendance {
+  id          String   @id @default(uuid())
+  timestamp   DateTime @default(now())
+  status      String   @default("PRESENT")
+  session     Session  @relation(fields: [sessionId], references: [id])
+  sessionId   String
+  student     Student  @relation(fields: [studentId], references: [id])
+  studentId   String
+
+  @@unique([sessionId, studentId])
+  @@schema("public")
+}
