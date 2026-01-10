@@ -6,7 +6,7 @@ import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
 import jwt from 'jsonwebtoken';
 
-// --- 1. START SESSION (With Course Restriction) ---
+// --- 1. START SESSION (Fixed to include Session ID in QR) ---
 export const startSession = async (req: AuthRequest, res: Response) => {
   const { courseCode } = req.body;
   const profileId = req.user?.profileId;
@@ -24,29 +24,49 @@ export const startSession = async (req: AuthRequest, res: Response) => {
     }
 
     const expiryTime = new Date(Date.now() + 15 * 60000); 
-    const token = jwt.sign(
-      { profileId, courseCode, expiresAt: expiryTime },
-      process.env.QR_SECRET || 'fallback_qr_secret',
-      { expiresIn: '15m' }
-    );
 
+    // ✅ STEP 1: Create session record first to generate a database ID
     const session = await prisma.session.create({
       data: {
         courseCode,
         lecturerId: profileId!,
-        qrCode: token,
+        qrCode: "", // Temporary placeholder
         endTime: expiryTime,
         isActive: true
       }
     });
 
-    res.status(201).json({ token: session.qrCode, sessionId: session.id, expiresAt: expiryTime });
+    // ✅ STEP 2: Sign the JWT including the actual SESSION ID
+    const token = jwt.sign(
+      { 
+        sessionId: session.id, // This is what the student needs!
+        lecturerId: profileId, 
+        courseCode,
+        expiresAt: expiryTime 
+      },
+      process.env.QR_SECRET || 'fallback_qr_secret',
+      { expiresIn: '15m' }
+    );
+
+    // ✅ STEP 3: Update the session with the generated token
+    const updatedSession = await prisma.session.update({
+      where: { id: session.id },
+      data: { qrCode: token }
+    });
+
+    res.status(201).json({ 
+      token: updatedSession.qrCode, 
+      sessionId: session.id, 
+      expiresAt: expiryTime 
+    });
+
   } catch (error) {
+    console.error("Start Session Error:", error);
     res.status(500).json({ error: "Failed to initialize session" });
   }
 };
 
-// --- 2. GET SESSION ATTENDANCE COUNT (For Real-time Dashboard) ---
+// --- 2. GET SESSION ATTENDANCE COUNT ---
 export const getSessionCount = async (req: Request, res: Response) => {
   const { sessionId } = req.params;
   try {
@@ -59,7 +79,7 @@ export const getSessionCount = async (req: Request, res: Response) => {
   }
 };
 
-// --- 3. GET LECTURER SESSIONS (For Dashboard Table) ---
+// --- 3. GET LECTURER SESSIONS ---
 export const getLecturerSessions = async (req: Request, res: Response) => {
   const { lecturerId } = req.params;
   try {
@@ -121,7 +141,6 @@ export const exportAttendancePDF = async (req: Request, res: Response) => {
 
     const doc = new jsPDF() as any;
     
-    // Header Style
     doc.setFontSize(20);
     doc.setTextColor(40, 40, 40);
     doc.text("Official Attendance Report", 14, 22);
@@ -141,7 +160,7 @@ export const exportAttendancePDF = async (req: Request, res: Response) => {
       startY: 45,
       head: [['Full Name', 'Matric Number', 'Department', 'Sign-in Time']],
       body: tableData,
-      headStyles: { fillStyle: [79, 70, 229] }, // Indigo color
+      headStyles: { fillColor: [79, 70, 229] }, // Fixed property name to fillColor
     });
 
     const pdfBuffer = doc.output('arraybuffer');
