@@ -2,9 +2,15 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   /* CRITICAL FOR RENDER STATIC SITES: 
-     This tells Next.js to generate a standalone 'out' folder 
+     Generates the 'out' folder for static hosting.
   */
   output: 'export', 
+
+  /* FIXES MIME TYPE ERRORS: 
+     Ensures paths like /dashboard match /dashboard/index.html correctly.
+     This prevents the server from returning index.html when looking for CSS.
+  */
+  trailingSlash: true, 
   
   /* Required for 'output: export' if you use the <Image /> component */
   images: {
@@ -14,7 +20,7 @@ const nextConfig: NextConfig = {
   /* High-performance React compiler */
   reactCompiler: true,
 
-  /* Build bypasses */
+  /* Build bypasses - useful for fast deployments on Render */
   typescript: {
     ignoreBuildErrors: true,
   },
