@@ -24,10 +24,13 @@ export default function LecturerDashboard() {
       // Fetch fresh student counts for each session
       const sessionsWithCounts = await Promise.all(res.data.map(async (s: any) => {
         try {
-          // Added cache-busting timestamp (?t=...) to ensure the browser gets real-time data
-          const countRes = await api.get(`/session/count/${s.id}?t=${Date.now()}`);
+          /** * FIX: Changed URL to match your backend route: /session/:sessionId/count
+           * Added cache-busting timestamp (?t=...) to ensure real-time data
+           */
+          const countRes = await api.get(`/session/${s.id}/count?t=${Date.now()}`);
           return { ...s, count: countRes.data.count };
-        } catch {
+        } catch (err) {
+          console.error(`Error fetching count for session ${s.id}`, err);
           return { ...s, count: 0 };
         }
       }));
@@ -51,7 +54,7 @@ export default function LecturerDashboard() {
     // Initial fetch
     fetchSessions(parsedUser.profileId);
 
-    // SYNC FIX: Re-fetch data whenever the user returns to this tab (e.g. after finishing a session)
+    // SYNC FIX: Re-fetch data whenever the user returns to this tab (e.g. after scanning/closing a session)
     const handleFocus = () => fetchSessions(parsedUser.profileId);
     window.addEventListener('focus', handleFocus);
     
@@ -68,10 +71,10 @@ export default function LecturerDashboard() {
     try {
       const response = await api.get(`/session/export/${type}/${sessionId}`, { 
         responseType: 'blob',
-        headers: { 'Cache-Control': 'no-cache' } // Force fresh file from server
+        headers: { 'Cache-Control': 'no-cache' } 
       });
 
-      // EXPORT FIX: Check if the blob is actually a JSON error hidden as a file
+      // EXPORT FIX: Check if the blob is actually a JSON error (e.g. "No records found")
       if (response.data.type === 'application/json') {
         const text = await response.data.text();
         const errorData = JSON.parse(text);
@@ -83,8 +86,8 @@ export default function LecturerDashboard() {
       
       const blob = new Blob([response.data], { type: blobType });
 
-      // Safety check: if blob is tiny, it's likely an empty or corrupted file
-      if (blob.size < 50) throw new Error("File is empty. No attendance recorded yet.");
+      // Safety check: if blob is tiny, the backend likely sent an empty file
+      if (blob.size < 100) throw new Error("File is empty. This session likely has no records.");
 
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -100,7 +103,7 @@ export default function LecturerDashboard() {
       
     } catch (err: any) {
       console.error("Export Error:", err);
-      alert(err.message || `Export failed. This session might not have any records.`);
+      alert(err.message || `Export failed. Please ensure there are records for this session.`);
     } finally {
       setExporting(null);
     }
@@ -110,6 +113,7 @@ export default function LecturerDashboard() {
 
   return (
     <div className="min-h-screen bg-[#F8FAFF] text-slate-900 font-[family-name:var(--font-geist-sans)]">
+      {/* Navigation */}
       <nav className="sticky top-0 z-20 bg-white/70 backdrop-blur-xl border-b border-blue-50 px-6 py-4 flex justify-between items-center">
         <div className="flex items-center gap-2">
           <div className="bg-blue-600 p-2 rounded-xl text-white shadow-lg shadow-blue-200">
@@ -127,6 +131,7 @@ export default function LecturerDashboard() {
       </nav>
       
       <main className="p-6 space-y-8 pb-24">
+        {/* Welcome Header */}
         <header className="space-y-1">
           <div className="flex items-center justify-between">
              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-400">Lecturer Overview</span>
@@ -147,6 +152,7 @@ export default function LecturerDashboard() {
           </p>
         </header>
 
+        {/* Start Button */}
         <motion.button 
           whileHover={{ y: -2 }}
           whileTap={{ scale: 0.97 }}
@@ -160,12 +166,14 @@ export default function LecturerDashboard() {
           <ChevronRight size={20} className="opacity-60" />
         </motion.button>
 
+        {/* Stats Section */}
         <div className="flex gap-4 overflow-x-auto pb-4 -mx-6 px-6 no-scrollbar">
           <StatMiniCard label="Courses" value={user.courses?.length || 0} color="blue" />
           <StatMiniCard label="Sessions" value={sessions.length} color="indigo" />
           <StatMiniCard label="Status" value="Live" color="emerald" />
         </div>
 
+        {/* Recent Activity List */}
         <section className="space-y-4">
           <h3 className="font-black text-lg text-slate-700 flex items-center gap-2">
             <History size={20} className="text-blue-500" /> Recent Activity
@@ -202,6 +210,7 @@ export default function LecturerDashboard() {
                     </p>
                   </div>
 
+                  {/* Export Buttons */}
                   <div className="grid grid-cols-2 gap-3 pt-2">
                     <ExportButton 
                       label="CSV" 

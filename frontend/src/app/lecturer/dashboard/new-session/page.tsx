@@ -15,6 +15,7 @@ export default function NewSession() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
+  // Load user data and courses
   useEffect(() => {
     const userData = localStorage.getItem('user');
     if (userData) {
@@ -24,32 +25,51 @@ export default function NewSession() {
     }
   }, []);
 
+  // Real-time polling for student count
   useEffect(() => {
     let interval: NodeJS.Timeout;
+    
+    // Only poll if we have an active session
     if (qrToken && sessionId) {
       interval = setInterval(async () => {
         try {
-          const res = await api.get(`/session/${sessionId}/count`);
+          // FIX: URL matches the backend router.get('/:sessionId/count')
+          const res = await api.get(`/session/${sessionId}/count?t=${Date.now()}`);
           setAttendanceCount(res.data.count);
         } catch (err) {
-          console.error("Polling error", err);
+          console.error("Polling error:", err);
         }
-      }, 3000);
+      }, 3000); // Polls every 3 seconds
     }
-    return () => clearInterval(interval);
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
   }, [qrToken, sessionId]);
 
   const startSession = async () => {
     if (!courseCode) return;
     setLoading(true);
     try {
+      // Calls router.post('/start', ...)
       const res = await api.post('/session/start', { courseCode });
       setQrToken(res.data.token);
       setSessionId(res.data.sessionId);
     } catch (err: any) {
-      alert(err.response?.data?.error || "Failed to start session.");
+      console.error("Session start error:", err);
+      alert(err.response?.data?.error || "Failed to start session. Check your connection.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleEndSession = async () => {
+    try {
+      // Optional: Explicitly tell backend to close session if you have the endpoint
+      // await api.patch(`/session/close/${sessionId}`);
+      router.push('/lecturer/dashboard');
+    } catch (err) {
+      router.push('/lecturer/dashboard');
     }
   };
 
@@ -171,7 +191,6 @@ export default function NewSession() {
                   }}
                   className="p-6 bg-white border-[10px] border-slate-100 rounded-[3.5rem] shadow-2xl shadow-slate-200 inline-block mx-auto"
                 >
-                  {/* QR Code set to #000000 (Black) */}
                   <QRCodeSVG 
                     value={qrToken} 
                     size={260} 
@@ -189,7 +208,7 @@ export default function NewSession() {
               {/* End Session Button */}
               <motion.button 
                 whileTap={{ scale: 0.95 }}
-                onClick={() => router.push('/lecturer/dashboard')}
+                onClick={handleEndSession}
                 className="w-full bg-blue-600 text-white py-6 rounded-[2.5rem] font-black text-lg flex items-center justify-center gap-3 shadow-xl shadow-blue-200 transition-all"
               >
                 <CheckCircle2 size={22} /> End & View Results
