@@ -29,7 +29,7 @@ export default function NewSession() {
     if (qrToken && sessionId) {
       interval = setInterval(async () => {
         try {
-          const res = await api.get(`/session/${sessionId}/count`);
+          const res = await api.get(`/session/count/${sessionId}`);
           setAttendanceCount(res.data.count);
         } catch (err) {
           console.error("Polling error", err);
@@ -60,12 +60,12 @@ export default function NewSession() {
         <motion.button 
           whileTap={{ scale: 0.9 }}
           onClick={() => router.back()} 
-          className="p-3 bg-white text-blue-600 rounded-2xl shadow-sm border border-blue-50 transition-all"
+          className="p-3 bg-white text-slate-600 rounded-2xl shadow-sm border border-slate-100 transition-all"
         >
           <ChevronLeft size={24} />
         </motion.button>
         <div className="text-right">
-          <p className="text-[10px] font-black uppercase tracking-widest text-blue-400">SmartAttend</p>
+          <p className="text-[10px] font-black uppercase tracking-widest text-blue-500">SmartAttend</p>
           <h1 className="font-black text-lg text-slate-800">Attendance</h1>
         </div>
       </div>
@@ -96,7 +96,7 @@ export default function NewSession() {
                 <div className="space-y-4">
                   <div className="relative">
                     <select 
-                      className="w-full p-6 bg-white border-2 border-blue-100 rounded-[2rem] text-center text-2xl font-black uppercase appearance-none outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all shadow-sm"
+                      className="w-full p-6 bg-white border-2 border-slate-100 rounded-[2rem] text-center text-2xl font-black uppercase appearance-none outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all shadow-sm"
                       value={courseCode}
                       onChange={(e) => setCourseCode(e.target.value)}
                     >
@@ -134,13 +134,13 @@ export default function NewSession() {
               className="flex-1 flex flex-col items-center justify-between"
             >
               {/* Live Status Pill */}
-              <div className="w-full flex justify-between items-center bg-blue-600 text-white p-6 rounded-[2.5rem] shadow-lg shadow-blue-100">
+              <div className="w-full flex justify-between items-center bg-slate-900 text-white p-6 rounded-[2.5rem] shadow-lg shadow-slate-200">
                 <div className="flex items-center gap-2">
-                  <div className="w-2.5 h-2.5 bg-red-400 rounded-full animate-ping" />
+                  <div className="w-2.5 h-2.5 bg-emerald-400 rounded-full animate-ping" />
                   <span className="font-black text-[10px] uppercase tracking-[0.2em]">Live Session</span>
                 </div>
                 <div className="flex items-center gap-2 font-black">
-                  <Users size={18} />
+                  <Users size={18} className="text-blue-400" />
                   <span className="text-xl">{attendanceCount}</span>
                 </div>
               </div>
@@ -152,9 +152,9 @@ export default function NewSession() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.2 }}
                 >
-                  <h2 className="text-6xl font-black tracking-tighter mb-2 text-blue-600">{courseCode}</h2>
+                  <h2 className="text-6xl font-black tracking-tighter mb-2 text-slate-900">{courseCode}</h2>
                   <div className="flex items-center justify-center gap-2 text-slate-400">
-                    <ShieldCheck size={14} className="text-blue-500" /> 
+                    <ShieldCheck size={14} className="text-emerald-500" /> 
                     <span className="text-[10px] font-bold uppercase tracking-widest">Secure QR Protocol</span>
                   </div>
                 </motion.div>
@@ -162,26 +162,37 @@ export default function NewSession() {
                 <motion.div 
                   animate={{ 
                     y: [0, -8, 0],
-                    rotate: [0, 1, 0, -1, 0]
+                    rotate: [0, 0.5, 0, -0.5, 0]
                   }}
                   transition={{ 
-                    duration: 5, 
+                    duration: 6, 
                     repeat: Infinity, 
                     ease: "easeInOut" 
                   }}
-                  className="p-6 bg-white border-[10px] border-blue-50 rounded-[3.5rem] shadow-xl shadow-blue-100 inline-block mx-auto"
+                  className="p-6 bg-white border-[10px] border-slate-100 rounded-[3.5rem] shadow-2xl shadow-slate-200 inline-block mx-auto"
                 >
-                  <QRCodeSVG value={qrToken} size={260} level="H" includeMargin={true} fgColor="#2563eb" />
+                  {/* QR Code set to #000000 (Black) */}
+                  <QRCodeSVG 
+                    value={qrToken} 
+                    size={260} 
+                    level="H" 
+                    includeMargin={true} 
+                    fgColor="#000000" 
+                  />
                 </motion.div>
+                
+                <p className="text-slate-400 text-[10px] font-medium uppercase tracking-widest">
+                  Scanning active for 15 minutes
+                </p>
               </div>
 
               {/* End Session Button */}
               <motion.button 
                 whileTap={{ scale: 0.95 }}
                 onClick={() => router.push('/lecturer/dashboard')}
-                className="w-full bg-slate-900 text-white py-6 rounded-[2.5rem] font-black text-lg flex items-center justify-center gap-3 shadow-xl transition-all"
+                className="w-full bg-blue-600 text-white py-6 rounded-[2.5rem] font-black text-lg flex items-center justify-center gap-3 shadow-xl shadow-blue-100 transition-all"
               >
-                <CheckCircle2 size={22} className="text-blue-400" /> End & View Results
+                <CheckCircle2 size={22} /> End & View Results
               </motion.button>
             </motion.div>
           )}
