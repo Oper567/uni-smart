@@ -6,7 +6,7 @@ import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
 import jwt from 'jsonwebtoken';
 
-// --- 1. START SESSION (Fixed to include Session ID in QR) ---
+// --- 1. START SESSION ---
 export const startSession = async (req: AuthRequest, res: Response) => {
   const { courseCode } = req.body;
   const profileId = req.user?.profileId;
@@ -20,35 +20,29 @@ export const startSession = async (req: AuthRequest, res: Response) => {
     });
 
     if (!lecturer || !lecturer.courses.includes(courseCode)) {
-      return res.status(403).json({ error: `You are not authorized for course: ${courseCode}` });
+      return res.status(403).json({ error: `Not authorized for course: ${courseCode}` });
     }
 
     const expiryTime = new Date(Date.now() + 15 * 60000); 
 
-    // ✅ STEP 1: Create session record first to generate a database ID
+    // Create session first to get database ID
     const session = await prisma.session.create({
       data: {
         courseCode,
         lecturerId: profileId!,
-        qrCode: "", // Temporary placeholder
+        qrCode: "", 
         endTime: expiryTime,
         isActive: true
       }
     });
 
-    // ✅ STEP 2: Sign the JWT including the actual SESSION ID
+    // Generate JWT including the session ID
     const token = jwt.sign(
-      { 
-        sessionId: session.id, // This is what the student needs!
-        lecturerId: profileId, 
-        courseCode,
-        expiresAt: expiryTime 
-      },
+      { sessionId: session.id, lecturerId: profileId, courseCode },
       process.env.QR_SECRET || 'fallback_qr_secret',
       { expiresIn: '15m' }
     );
 
-    // ✅ STEP 3: Update the session with the generated token
     const updatedSession = await prisma.session.update({
       where: { id: session.id },
       data: { qrCode: token }
@@ -59,14 +53,26 @@ export const startSession = async (req: AuthRequest, res: Response) => {
       sessionId: session.id, 
       expiresAt: expiryTime 
     });
-
   } catch (error) {
-    console.error("Start Session Error:", error);
     res.status(500).json({ error: "Failed to initialize session" });
   }
 };
 
-// --- 2. GET SESSION ATTENDANCE COUNT ---
+// --- 2. CLOSE SESSION MANUALLY ---
+export const closeSession = async (req: AuthRequest, res: Response) => {
+  const { sessionId } = req.params;
+  try {
+    await prisma.session.update({
+      where: { id: sessionId },
+      data: { isActive: false }
+    });
+    res.json({ message: "Session closed successfully" });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to close session" });
+  }
+};
+
+// --- 3. GET ATTENDANCE COUNT ---
 export const getSessionCount = async (req: Request, res: Response) => {
   const { sessionId } = req.params;
   try {
@@ -79,75 +85,50 @@ export const getSessionCount = async (req: Request, res: Response) => {
   }
 };
 
-// --- 3. GET LECTURER SESSIONS ---
-export const getLecturerSessions = async (req: Request, res: Response) => {
-  const { lecturerId } = req.params;
-  try {
-    const sessions = await prisma.session.findMany({
-      where: { lecturerId },
-      orderBy: { createdAt: 'desc' }
-    });
-    res.json(sessions);
-  } catch (error) {
-    res.status(500).json({ error: "Failed to fetch session history" });
-  }
-};
-
-// --- 4. EXPORT ATTENDANCE CSV ---
-export const exportAttendanceCSV = async (req: Request, res: Response) => {
+// --- 4. EXPORT CSV ---
+export const exportAttendanceCSV = async (req: AuthRequest, res: Response) => {
   const { sessionId } = req.params;
   try {
     const attendance = await prisma.attendance.findMany({
       where: { sessionId },
-      include: {
-        student: { include: { user: true } },
-        session: true
-      }
+      include: { student: { include: { user: true } }, session: true }
     });
+
+    if (attendance.length === 0) return res.status(404).json({ error: "No records to export" });
 
     const data = attendance.map(rec => ({
       "Student Name": rec.student.user.name,
       "Matric No": rec.student.matricNo,
       "Department": rec.student.user.department,
-      "Course": rec.session.courseCode,
       "Time In": rec.timestamp.toLocaleString(),
-      "Status": rec.status
     }));
 
-    const json2csvParser = new Parser();
-    const csv = json2csvParser.parse(data);
-
+    const csv = new Parser().parse(data);
     res.header('Content-Type', 'text/csv');
-    res.attachment(`Attendance_${sessionId}.csv`);
-    return res.status(200).send(csv);
+    res.attachment(`Attendance_${attendance[0].session.courseCode}.csv`);
+    return res.send(csv);
   } catch (error) {
     res.status(500).json({ error: "CSV Export failed" });
   }
 };
 
-// --- 5. EXPORT ATTENDANCE PDF ---
-export const exportAttendancePDF = async (req: Request, res: Response) => {
+// --- 5. EXPORT PDF ---
+export const exportAttendancePDF = async (req: AuthRequest, res: Response) => {
   const { sessionId } = req.params;
   try {
     const attendance = await prisma.attendance.findMany({
       where: { sessionId },
-      include: {
-        student: { include: { user: true } },
-        session: true
-      }
+      include: { student: { include: { user: true } }, session: true },
+      orderBy: { student: { user: { name: 'asc' } } }
     });
 
     if (attendance.length === 0) return res.status(404).json({ error: "No records found" });
 
-    const doc = new jsPDF() as any;
-    
-    doc.setFontSize(20);
-    doc.setTextColor(40, 40, 40);
-    doc.text("Official Attendance Report", 14, 22);
-    
-    doc.setFontSize(12);
-    doc.text(`Course: ${attendance[0].session.courseCode}`, 14, 32);
-    doc.text(`Date: ${new Date(attendance[0].session.createdAt).toLocaleDateString()}`, 14, 38);
+    const doc = new jsPDF();
+    doc.setFontSize(18);
+    doc.text(`Attendance: ${attendance[0].session.courseCode}`, 14, 20);
+    doc.setFontSize(10);
+    doc.text(`Date: ${new Date(attendance[0].session.createdAt).toLocaleDateString()}`, 14, 28);
 
     const tableData = attendance.map(rec => [
       rec.student.user.name,
@@ -156,18 +137,19 @@ export const exportAttendancePDF = async (req: Request, res: Response) => {
       new Date(rec.timestamp).toLocaleTimeString()
     ]);
 
-    doc.autoTable({
-      startY: 45,
+    (doc as any).autoTable({
+      startY: 35,
       head: [['Full Name', 'Matric Number', 'Department', 'Sign-in Time']],
       body: tableData,
-      headStyles: { fillColor: [79, 70, 229] }, // Fixed property name to fillColor
+      headStyles: { fillColor: [79, 70, 229] },
     });
 
-    const pdfBuffer = doc.output('arraybuffer');
-    res.header('Content-Type', 'application/pdf');
-    res.attachment(`Attendance_${attendance[0].session.courseCode}.pdf`);
-    return res.send(Buffer.from(pdfBuffer));
+    const pdfBuffer = Buffer.from(doc.output('arraybuffer'));
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename=Attendance_${attendance[0].session.courseCode}.pdf`);
+    return res.end(pdfBuffer);
   } catch (error) {
+    console.error(error);
     res.status(500).json({ error: "PDF Export failed" });
   }
 };

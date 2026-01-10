@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import helmet from 'helmet';
 
+
 // 1. GLOBAL ERROR CATCHERS
 process.on('uncaughtException', (err) => {
   console.error('🔥 CRITICAL STARTUP ERROR:', err.message);
@@ -18,6 +19,7 @@ import sessionRoutes from './routes/session.routes.js';
 import { markAttendance } from './controllers/attendance.controller.js';
 import { authenticate, authorizeRole } from './middlewares/auth.middleware.js';
 import { prisma } from './lib/prisma.js';
+import studentRoutes from './routes/student.routes.js';
 
 const app = express();
 
@@ -70,6 +72,7 @@ app.use(express.urlencoded({ extended: true }));
 // 5. ROUTES
 app.use('/api/auth', authRoutes);
 app.use('/api/session', sessionRoutes);
+app.use('/api/student', studentRoutes);
 
 // Attendance Route
 app.post('/api/attendance/mark', authenticate, authorizeRole(['STUDENT']), markAttendance);
