@@ -5,7 +5,7 @@ import api from '@/lib/api';
 import { User, Mail, Lock, Building, BookOpen, GraduationCap, Loader2 } from 'lucide-react';
 
 // Define your departments to keep data consistent
-const DEPARTMENTS = ["Computer Science", "information communication system", "Cyber security ", "Data Science", "Software Engineering", "Information System"];
+const DEPARTMENTS = ["Computer Science", "Information Communication System", "Cyber Security", "Data Science", "Software Engineering", "Information System"];
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -41,7 +41,7 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
+    <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6 font-[family-name:var(--font-geist-sans)]">
       <div className="w-full max-w-xl bg-white rounded-3xl shadow-xl p-8 border border-slate-100">
         <h2 className="text-3xl font-black text-indigo-600 mb-2 text-center">Smart Attendance</h2>
         <p className="text-slate-500 text-center mb-8">Create your {role.toLowerCase()} account</p>
@@ -62,9 +62,10 @@ export default function RegisterPage() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Input icon={<User size={18}/>} placeholder="Full Name" value={formData.name} onChange={v => setFormData({...formData, name: v})} />
-            <Input icon={<Mail size={18}/>} type="email" placeholder="Email Address" value={formData.email} onChange={v => setFormData({...formData, email: v})} />
-            <Input icon={<Lock size={18}/>} type="password" placeholder="Password" value={formData.password} onChange={v => setFormData({...formData, password: v})} />
+            {/* Explicitly typing 'v' as string to satisfy TypeScript build requirements */}
+            <Input icon={<User size={18}/>} placeholder="Full Name" value={formData.name} onChange={(v: string) => setFormData({...formData, name: v})} />
+            <Input icon={<Mail size={18}/>} type="email" placeholder="Email Address" value={formData.email} onChange={(v: string) => setFormData({...formData, email: v})} />
+            <Input icon={<Lock size={18}/>} type="password" placeholder="Password" value={formData.password} onChange={(v: string) => setFormData({...formData, password: v})} />
             
             {/* Department Dropdown */}
             <div className="relative">
@@ -81,16 +82,16 @@ export default function RegisterPage() {
             </div>
 
             {role === 'STUDENT' ? (
-              <Input icon={<GraduationCap size={18}/>} placeholder="Matric Number" value={formData.matricNo} onChange={v => setFormData({...formData, matricNo: v})} />
+              <Input icon={<GraduationCap size={18}/>} placeholder="Matric Number" value={formData.matricNo} onChange={(v: string) => setFormData({...formData, matricNo: v})} />
             ) : (
               <>
-                <Input icon={<BookOpen size={18}/>} placeholder="Staff ID" value={formData.staffId} onChange={v => setFormData({...formData, staffId: v})} />
+                <Input icon={<BookOpen size={18}/>} placeholder="Staff ID" value={formData.staffId} onChange={(v: string) => setFormData({...formData, staffId: v})} />
                 <div className="md:col-span-2">
                   <Input 
                     icon={<BookOpen size={18}/>} 
                     placeholder="Assigned Courses (e.g. CSC101, DCOT205)" 
                     value={formData.courses}
-                    onChange={v => setFormData({...formData, courses: v})} 
+                    onChange={(v: string) => setFormData({...formData, courses: v})} 
                   />
                   <p className="text-[10px] text-slate-400 mt-1 ml-2">* This restricts which courses you can start sessions for.</p>
                 </div>
@@ -111,7 +112,14 @@ export default function RegisterPage() {
   );
 }
 
-function Input({ icon, type = "text", placeholder, value, onChange }: any) {
+// Fixed the 'any' types here to be more specific for the build process
+function Input({ icon, type = "text", placeholder, value, onChange }: { 
+  icon: React.ReactNode, 
+  type?: string, 
+  placeholder: string, 
+  value: string, 
+  onChange: (v: string) => void 
+}) {
   return (
     <div className="relative">
       <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">{icon}</div>
