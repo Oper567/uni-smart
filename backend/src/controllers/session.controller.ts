@@ -3,7 +3,7 @@ import { prisma } from "../lib/prisma.js";
 import { AuthRequest } from "../middlewares/auth.middleware.js";
 import { Parser } from "json2csv";
 import { jsPDF } from "jspdf";
-import autoTable from "jspdf-autotable"; // Explicit import for Node compatibility
+import autoTable from "jspdf-autotable"; 
 import jwt from "jsonwebtoken";
 
 // --- 1. START SESSION ---
@@ -66,7 +66,6 @@ export const closeSession = async (req: AuthRequest, res: Response) => {
     const session = await prisma.session.findUnique({ where: { id: sessionId } });
     if (!session) return res.status(404).json({ error: "Session not found" });
     
-    // Security check: Only the owner can close
     if (session.lecturerId !== profileId) return res.status(403).json({ error: "Unauthorized" });
 
     await prisma.session.update({
@@ -122,7 +121,6 @@ export const exportAttendanceCSV = async (req: AuthRequest, res: Response) => {
       "Time In": rec.timestamp.toLocaleString(),
     }));
 
-    // withBOM ensures Excel handles characters correctly
     const csv = new Parser({ withBOM: true }).parse(data);
     res.setHeader("Content-Type", "text/csv");
     res.setHeader("Content-Disposition", `attachment; filename=Attendance_${attendance[0].session.courseCode}.csv`);
@@ -146,7 +144,6 @@ export const exportAttendancePDF = async (req: AuthRequest, res: Response) => {
 
     const doc = new jsPDF();
     
-    // Header Styling
     doc.setFontSize(20);
     doc.setTextColor(37, 99, 235);
     doc.text(`Attendance Report: ${attendance[0].session.courseCode}`, 14, 22);
@@ -158,8 +155,8 @@ export const exportAttendancePDF = async (req: AuthRequest, res: Response) => {
       new Date(rec.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     ]);
 
-    // Use explicit autoTable function call for Node support
-    autoTable(doc, {
+    // FIX: Using (autoTable as any) to bypass TypeScript "not callable" error on build
+    (autoTable as any)(doc, {
       startY: 35,
       head: [["Full Name", "Matric Number", "Department", "Sign-in Time"]],
       body: tableData,
@@ -168,7 +165,6 @@ export const exportAttendancePDF = async (req: AuthRequest, res: Response) => {
       styles: { font: "helvetica" }
     });
 
-    // Capture output as Buffer
     const pdfOutput = doc.output("arraybuffer");
     const buffer = Buffer.from(new Uint8Array(pdfOutput));
 
