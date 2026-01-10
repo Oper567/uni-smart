@@ -1,131 +1,149 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Camera, LogOut, User, LayoutDashboard, Clock, CheckCircle2 } from 'lucide-react';
-import api from '@/lib/api'; // Ensure your axios instance is imported
+import { 
+  QrCode, User, GraduationCap, MapPin, 
+  ChevronRight, LogOut, Bell, Layout
+} from 'lucide-react';
+import { motion } from 'framer-motion';
+import api from '@/lib/api';
 
 export default function StudentDashboard() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
-  const [history, setHistory] = useState<any[]>([]);
+  const [courseStats, setCourseStats] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const storedUser = localStorage.getItem('user');
-    const token = localStorage.getItem('token');
-
-    if (!token || !storedUser) {
-      router.replace('/login');
+    if (!storedUser) {
+      router.push('/login');
       return;
     }
-
     const parsedUser = JSON.parse(storedUser);
     setUser(parsedUser);
-
-    // Fetch Attendance History
-    const fetchHistory = async () => {
-      try {
-        const res = await api.get('/student/history'); // Adjust path to your route
-        setHistory(res.data);
-      } catch (err) {
-        console.error("History fetch error:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchHistory();
+    fetchAttendanceStats(parsedUser.profileId);
   }, [router]);
+
+  const fetchAttendanceStats = async (studentId: string) => {
+    try {
+      // Endpoint returns attendance % for each course the student is involved in
+      const res = await api.get(`/student/stats/${studentId}`);
+      setCourseStats(res.data);
+    } catch (err) {
+      console.error("Failed to fetch stats");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleLogout = () => {
     localStorage.clear();
-    router.replace('/login');
+    router.push('/login');
   };
 
-  if (!user) return <div className="h-screen flex items-center justify-center font-bold text-indigo-600 animate-pulse text-xl">Loading...</div>;
+  if (!user) return null;
 
   return (
-    <div className="min-h-screen bg-slate-50 font-[family-name:var(--font-geist-sans)]">
-      {/* Navbar */}
-      <nav className="bg-white border-b px-6 py-4 flex justify-between items-center sticky top-0 z-10">
-        <div className="flex items-center gap-2 text-indigo-600 font-black text-lg">
-          <div className="bg-indigo-600 p-1.5 rounded-lg">
-            <LayoutDashboard size={18} className="text-white" />
+    <div className="min-h-screen bg-[#F8FAFF] text-slate-900 font-[family-name:var(--font-geist-sans)]">
+      {/* Dynamic Nav */}
+      <nav className="sticky top-0 z-20 bg-white/70 backdrop-blur-xl border-b border-blue-50 px-6 py-4 flex justify-between items-center">
+        <div className="flex items-center gap-2">
+          <div className="bg-blue-600 p-2 rounded-xl text-white shadow-lg shadow-blue-200">
+            <Layout size={18}/>
           </div>
-          <span>UniSmart</span>
+          <span className="font-black text-sm tracking-tighter text-blue-900 uppercase">SmartAttend</span>
         </div>
-        <button onClick={handleLogout} className="text-slate-400 hover:text-red-500 p-2 transition-colors">
-          <LogOut size={20} />
-        </button>
+        <div className="flex items-center gap-3">
+          <button className="text-slate-400 p-2"><Bell size={20} /></button>
+          <motion.button 
+            whileTap={{ scale: 0.9 }}
+            onClick={handleLogout} 
+            className="text-red-500 bg-red-50 p-2 rounded-lg"
+          >
+            <LogOut size={20} />
+          </motion.button>
+        </div>
       </nav>
 
-      <main className="p-6 max-w-md mx-auto space-y-6">
-        {/* Profile Card */}
-        <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex items-center gap-4">
-          <div className="bg-indigo-50 p-4 rounded-2xl text-indigo-600">
-            <User size={28} />
+      <main className="p-6 space-y-8 pb-32">
+        {/* Profile Header */}
+        <header className="flex items-center gap-4 bg-white p-6 rounded-[2.5rem] shadow-xl shadow-blue-900/5 border border-blue-50">
+          <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 border-4 border-white shadow-inner">
+            <User size={32} />
           </div>
           <div>
-            <h2 className="text-xl font-black text-slate-800 leading-tight">{user.name}</h2>
-            <p className="text-indigo-600 text-sm font-bold tracking-tight">{user.matricNo}</p>
+            <h2 className="text-xl font-black text-slate-800 leading-none">{user.name}</h2>
+            <p className="text-slate-400 text-xs font-bold mt-1 uppercase tracking-tighter">{user.student?.matricNo || 'Student'}</p>
           </div>
-        </div>
+        </header>
 
-        {/* Scan Button */}
-        <button 
+        {/* Scan Floating Action Button */}
+        <motion.button 
+          whileHover={{ y: -5 }}
+          whileTap={{ scale: 0.95 }}
           onClick={() => router.push('/scan')}
-          className="w-full bg-indigo-600 hover:bg-indigo-700 text-white p-8 rounded-[2.5rem] shadow-xl shadow-indigo-200 flex flex-col items-center gap-3 transition-all active:scale-95 group"
+          className="w-full bg-blue-600 text-white p-8 rounded-[2.5rem] font-black text-xl flex flex-col items-center justify-center gap-3 shadow-2xl shadow-blue-300 transition-all relative overflow-hidden group"
         >
-          <div className="bg-white/20 p-4 rounded-full group-hover:scale-110 transition-transform">
-            <Camera size={32} />
+          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-150 transition-transform">
+            <QrCode size={120} />
           </div>
-          <div className="text-center">
-            <span className="text-lg font-black block">Mark Attendance</span>
-            <span className="text-indigo-100 text-[10px] uppercase tracking-widest font-bold">Tap to Scan QR</span>
+          <div className="bg-white/20 p-3 rounded-2xl mb-1">
+            <QrCode size={32} />
           </div>
-        </button>
+          <span>Scan to Sign-in</span>
+          <p className="text-[10px] uppercase tracking-[0.3em] font-medium opacity-60">Ready for scan</p>
+        </motion.button>
 
-        {/* History Section */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between px-2">
-            <h3 className="font-black text-slate-800 flex items-center gap-2">
-              <Clock size={18} className="text-indigo-600" /> Recent Sign-ins
-            </h3>
-            <span className="text-[10px] font-bold text-slate-400 uppercase bg-slate-100 px-2 py-1 rounded-md">
-              {history.length} Classes
-            </span>
-          </div>
-
-          <div className="space-y-3">
+        {/* Course Grid */}
+        <section className="space-y-4">
+          <h3 className="font-black text-lg text-slate-700 flex items-center gap-2">
+            <GraduationCap size={20} className="text-blue-500" /> My Courses
+          </h3>
+          
+          <div className="grid gap-4">
             {loading ? (
-              [1, 2, 3].map(i => <div key={i} className="h-20 bg-slate-200 animate-pulse rounded-2xl" />)
-            ) : history.length > 0 ? (
-              history.map((record) => (
-                <div key={record.id} className="bg-white p-4 rounded-2xl border border-slate-100 flex items-center justify-between shadow-sm">
-                  <div className="flex items-center gap-3">
-                    <div className="bg-green-100 p-2.5 rounded-xl text-green-600">
-                      <CheckCircle2 size={20} />
-                    </div>
-                    <div>
-                      <p className="font-black text-slate-800 text-sm">{record.session.courseCode}</p>
-                      <p className="text-slate-400 text-[11px] font-medium">
-                        {new Date(record.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} • {new Date(record.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-[10px] font-black text-green-600 bg-green-50 px-2 py-1 rounded-full uppercase">Present</span>
-                  </div>
-                </div>
+              [1, 2].map(i => <div key={i} className="h-32 bg-white animate-pulse rounded-[2rem]" />)
+            ) : courseStats.length > 0 ? (
+              courseStats.map((course) => (
+                <CourseCard key={course.code} course={course} />
               ))
             ) : (
-              <div className="text-center py-10 bg-white rounded-3xl border border-dashed border-slate-200">
-                <p className="text-slate-400 text-sm font-medium">No attendance records found yet.</p>
+              <div className="bg-white p-10 rounded-[2.5rem] text-center border-2 border-dashed border-blue-100">
+                <p className="text-slate-400 font-bold">No active courses found.</p>
               </div>
             )}
           </div>
-        </div>
+        </section>
       </main>
     </div>
+  );
+}
+
+function CourseCard({ course }: { course: any }) {
+  const getHealthColor = (percent: number) => {
+    if (percent >= 75) return 'text-emerald-500 bg-emerald-50 border-emerald-100';
+    if (percent >= 50) return 'text-amber-500 bg-amber-50 border-amber-100';
+    return 'text-red-500 bg-red-50 border-red-100';
+  };
+
+  return (
+    <motion.div 
+      initial={{ opacity: 0, x: -10 }}
+      animate={{ opacity: 1, x: 0 }}
+      className="bg-white p-5 rounded-[2.2rem] border border-blue-50 shadow-sm flex items-center justify-between group hover:border-blue-200 transition-colors"
+    >
+      <div className="flex items-center gap-4">
+        <div className={`w-14 h-14 rounded-2xl flex flex-col items-center justify-center border ${getHealthColor(course.percentage)}`}>
+           <span className="text-lg font-black leading-none">{course.percentage}%</span>
+           <span className="text-[7px] font-black uppercase">Presence</span>
+        </div>
+        <div>
+          <h4 className="font-black text-slate-800 tracking-tight text-lg uppercase">{course.code}</h4>
+          <p className="text-slate-400 text-xs font-bold">{course.attended} of {course.total} Sessions</p>
+        </div>
+      </div>
+      <ChevronRight size={20} className="text-slate-200 group-hover:text-blue-500 group-hover:translate-x-1 transition-all" />
+    </motion.div>
   );
 }

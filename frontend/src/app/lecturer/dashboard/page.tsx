@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   PlusCircle, LogOut, Users, BookOpen, Layout, 
-  History, FileSpreadsheet, FileText, Loader2, RefreshCw, Calendar
+  History, FileSpreadsheet, FileText, Loader2, RefreshCw, Calendar, ChevronRight
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import api from '@/lib/api';
@@ -69,118 +69,157 @@ export default function LecturerDashboard() {
   if (!user) return null;
 
   return (
-    <div className="min-h-screen bg-white text-black font-[family-name:var(--font-geist-sans)]">
-      {/* Mobile Nav */}
-      <nav className="sticky top-0 z-20 bg-white/80 backdrop-blur-md border-b border-slate-100 px-6 py-4 flex justify-between items-center">
+    <div className="min-h-screen bg-[#F8FAFF] text-slate-900 font-[family-name:var(--font-geist-sans)]">
+      {/* Blue Tinted Mobile Nav */}
+      <nav className="sticky top-0 z-20 bg-white/70 backdrop-blur-xl border-b border-blue-50 px-6 py-4 flex justify-between items-center">
         <div className="flex items-center gap-2">
-          <div className="bg-black p-1.5 rounded-lg text-white">
+          <div className="bg-blue-600 p-2 rounded-xl text-white shadow-lg shadow-blue-200">
             <Layout size={18}/>
           </div>
-          <span className="font-black text-sm tracking-tighter">SmartAttend</span>
+          <span className="font-black text-sm tracking-tighter text-blue-900 uppercase">SmartAttend</span>
         </div>
-        <button onClick={handleLogout} className="text-red-500 p-2 active:bg-red-50 rounded-full">
-          <LogOut size={20} />
-        </button>
+        <motion.button 
+          whileTap={{ scale: 0.9 }}
+          onClick={handleLogout} 
+          className="text-slate-400 p-2 hover:text-red-500 transition-colors"
+        >
+          <LogOut size={22} />
+        </motion.button>
       </nav>
       
       <main className="p-6 space-y-8 pb-24">
         {/* Welcome Header */}
         <header className="space-y-1">
           <div className="flex items-center justify-between">
-             <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Lecturer Portal</span>
-             <button onClick={() => fetchSessions(user.profileId)} className="text-slate-400">
+             <span className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-400">Lecturer Overview</span>
+             <motion.button 
+               whileTap={{ rotate: 180 }}
+               onClick={() => fetchSessions(user.profileId)} 
+               className="text-blue-500 bg-blue-50 p-2 rounded-full"
+             >
                <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
-             </button>
+             </motion.button>
           </div>
-          <h2 className="text-3xl font-black tracking-tight leading-tight">
-            Hi, {user.name.split(' ')[0]}
+          <h2 className="text-3xl font-black tracking-tight text-slate-800">
+            Welcome, {user.name.split(' ')[0]}
           </h2>
-          <p className="text-slate-500 text-sm font-medium">{user.department}</p>
+          <p className="text-slate-500 text-sm font-medium flex items-center gap-1">
+             <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+             {user.department}
+          </p>
         </header>
 
-        {/* Start Button - Mobile Primary Action */}
-        <button 
+        {/* Start Button - Vibrant Blue Action */}
+        <motion.button 
+          whileHover={{ y: -2 }}
+          whileTap={{ scale: 0.97 }}
           onClick={() => router.push('/lecturer/dashboard/new-session')}
-          className="w-full bg-black text-white p-6 rounded-[2rem] font-black text-lg flex items-center justify-between shadow-xl shadow-slate-200 active:scale-95 transition-all"
+          className="w-full bg-blue-600 text-white p-6 rounded-[2rem] font-black text-lg flex items-center justify-between shadow-2xl shadow-blue-200 transition-all border-b-4 border-blue-800"
         >
           <div className="flex items-center gap-3">
-            <PlusCircle size={24} />
-            <span>New Attendance</span>
+            <PlusCircle size={26} />
+            <span>New Session</span>
           </div>
-          <BookOpen size={20} className="opacity-40" />
-        </button>
+          <ChevronRight size={20} className="opacity-60" />
+        </motion.button>
 
-        {/* Stats Scroll */}
+        {/* Stats Scroll - Soft Blue Backgrounds */}
         <div className="flex gap-4 overflow-x-auto pb-4 -mx-6 px-6 no-scrollbar">
-          <div className="min-w-[140px] bg-slate-50 p-5 rounded-3xl space-y-1">
-            <p className="text-[10px] font-black uppercase text-slate-400">Courses</p>
-            <p className="text-2xl font-black">{user.courses?.length || 0}</p>
-          </div>
-          <div className="min-w-[140px] bg-slate-50 p-5 rounded-3xl space-y-1">
-            <p className="text-[10px] font-black uppercase text-slate-400">Total</p>
-            <p className="text-2xl font-black">{sessions.length}</p>
-          </div>
-          <div className="min-w-[140px] bg-black text-white p-5 rounded-3xl space-y-1">
-            <p className="text-[10px] font-black uppercase text-white/50">Active</p>
-            <p className="text-2xl font-black">Online</p>
-          </div>
+          <StatMiniCard label="Courses" value={user.courses?.length || 0} color="blue" />
+          <StatMiniCard label="Sessions" value={sessions.length} color="indigo" />
+          <StatMiniCard label="Status" value="Live" color="emerald" />
         </div>
 
         {/* Recent Activity List */}
         <section className="space-y-4">
-          <h3 className="font-black text-lg flex items-center gap-2">
-            <History size={20} /> Recent Sessions
+          <h3 className="font-black text-lg text-slate-700 flex items-center gap-2">
+            <History size={20} className="text-blue-500" /> Recent Activity
           </h3>
 
           <div className="space-y-4">
             {loading ? (
-              [1,2,3].map(i => <div key={i} className="h-32 bg-slate-100 animate-pulse rounded-[2rem]" />)
+              [1,2].map(i => <div key={i} className="h-40 bg-white border border-blue-50 animate-pulse rounded-[2rem]" />)
             ) : sessions.length > 0 ? (
               sessions.map((session) => (
-                <div key={session.id} className="bg-white border border-slate-100 rounded-[2rem] p-6 shadow-sm space-y-4">
+                <motion.div 
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  key={session.id} 
+                  className="bg-white border border-blue-50 rounded-[2rem] p-6 shadow-xl shadow-blue-900/5 space-y-4"
+                >
                   <div className="flex justify-between items-start">
                     <div className="space-y-1">
-                      <span className="bg-black text-white text-[10px] font-black px-3 py-1 rounded-full uppercase">
+                      <span className="bg-blue-50 text-blue-700 text-[10px] font-black px-3 py-1 rounded-lg uppercase tracking-wider">
                         {session.courseCode}
                       </span>
-                      <div className="flex items-center gap-2 text-slate-400 text-xs mt-2">
-                        <Calendar size={12} />
+                      <div className="flex items-center gap-2 text-slate-400 text-xs mt-2 font-bold">
+                        <Calendar size={12} className="text-blue-300" />
                         {new Date(session.createdAt).toLocaleDateString(undefined, { dateStyle: 'medium' })}
                       </div>
                     </div>
-                    <p className="text-xs font-bold text-slate-400">
+                    <p className="text-[10px] font-black text-slate-300 bg-slate-50 px-2 py-1 rounded-md">
                       {new Date(session.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </p>
                   </div>
 
                   <div className="grid grid-cols-2 gap-3 pt-2">
-                    <button 
-                      disabled={exporting?.startsWith(session.id)}
+                    <ExportButton 
+                      label="CSV" 
+                      icon={<FileSpreadsheet size={16} />}
+                      isLoading={exporting === `${session.id}-csv`}
                       onClick={() => exportFile(session.id, session.courseCode, 'csv')}
-                      className="flex items-center justify-center gap-2 py-3 bg-slate-50 text-slate-900 rounded-2xl text-xs font-black active:bg-black active:text-white transition-all disabled:opacity-50"
-                    >
-                      {exporting === `${session.id}-csv` ? <Loader2 size={14} className="animate-spin" /> : <FileSpreadsheet size={16} />}
-                      CSV
-                    </button>
-                    <button 
-                      disabled={exporting?.startsWith(session.id)}
+                    />
+                    <ExportButton 
+                      label="PDF" 
+                      icon={<FileText size={16} />}
+                      isLoading={exporting === `${session.id}-pdf`}
                       onClick={() => exportFile(session.id, session.courseCode, 'pdf')}
-                      className="flex items-center justify-center gap-2 py-3 bg-slate-50 text-slate-900 rounded-2xl text-xs font-black active:bg-black active:text-white transition-all disabled:opacity-50"
-                    >
-                      {exporting === `${session.id}-pdf` ? <Loader2 size={14} className="animate-spin" /> : <FileText size={16} />}
-                      PDF Report
-                    </button>
+                      variant="primary"
+                    />
                   </div>
-                </div>
+                </motion.div>
               ))
             ) : (
-              <div className="text-center py-12 bg-slate-50 rounded-[2rem] border-2 border-dashed border-slate-200">
-                <p className="text-slate-400 text-sm font-medium">No sessions found</p>
+              <div className="text-center py-16 bg-white border border-blue-50 rounded-[2.5rem] shadow-inner">
+                <BookOpen size={40} className="mx-auto text-blue-100 mb-2" />
+                <p className="text-slate-400 text-sm font-medium">No sessions recorded yet</p>
               </div>
             )}
           </div>
         </section>
       </main>
     </div>
+  );
+}
+
+// Helper Components for Cleaner Code
+function StatMiniCard({ label, value, color }: any) {
+  const colors: any = {
+    blue: "bg-blue-50 text-blue-600 border-blue-100",
+    indigo: "bg-indigo-50 text-indigo-600 border-indigo-100",
+    emerald: "bg-emerald-50 text-emerald-600 border-emerald-100"
+  };
+  return (
+    <div className={`min-w-[140px] border p-5 rounded-[2rem] space-y-1 ${colors[color]}`}>
+      <p className="text-[10px] font-black uppercase opacity-60">{label}</p>
+      <p className="text-2xl font-black tracking-tight">{value}</p>
+    </div>
+  );
+}
+
+function ExportButton({ label, icon, isLoading, onClick, variant }: any) {
+  return (
+    <button 
+      disabled={isLoading}
+      onClick={onClick}
+      className={`flex items-center justify-center gap-2 py-3.5 rounded-2xl text-xs font-black transition-all active:scale-95 disabled:opacity-50 ${
+        variant === 'primary' 
+        ? "bg-blue-600 text-white shadow-lg shadow-blue-100" 
+        : "bg-blue-50 text-blue-700 border border-blue-100"
+      }`}
+    >
+      {isLoading ? <Loader2 size={14} className="animate-spin" /> : icon}
+      {label}
+    </button>
   );
 }

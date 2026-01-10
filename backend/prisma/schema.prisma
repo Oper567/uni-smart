@@ -14,7 +14,7 @@ model User {
   password    String
   name        String
   role        String   // "STUDENT" or "LECTURER"
-  department  String   // 👈 Track user's department
+  department  String   // Track user's department
   createdAt   DateTime @default(now())
 
   student     Student?
@@ -24,34 +24,34 @@ model User {
 }
 
 model Lecturer {
-  id          String   @id @default(uuid())
-  user        User     @relation(fields: [userId], references: [id])
-  userId      String   @unique
-  staffId     String   @unique
-  courses     String[] // 👈 Allowed course codes (e.g., ["DCOT205", "CSC101"])
-  sessions    Session[]
+  id        String    @id @default(uuid())
+  user      User      @relation(fields: [userId], references: [id])
+  userId    String    @unique
+  staffId   String    @unique
+  courses   String[]  // Allowed course codes (e.g., ["DCOT205", "CSC101"])
+  sessions  Session[]
 
   @@schema("public")
 }
 
 model Student {
-  id          String   @id @default(uuid())
-  user        User     @relation(fields: [userId], references: [id])
-  userId      String   @unique
-  matricNo    String   @unique
+  id          String       @id @default(uuid())
+  user        User         @relation(fields: [userId], references: [id])
+  userId      String       @unique
+  matricNo    String       @unique
   attendance  Attendance[]
 
   @@schema("public")
 }
 
 model Session {
-  id          String   @id @default(uuid())
+  id          String       @id @default(uuid())
   courseCode  String
-  qrCode      String   @unique 
-  isActive    Boolean  @default(true)
+  qrCode      String       @unique 
+  isActive    Boolean      @default(true)
   endTime     DateTime 
-  createdAt   DateTime @default(now())
-  lecturer    Lecturer @relation(fields: [lecturerId], references: [id])
+  createdAt   DateTime     @default(now())
+  lecturer    Lecturer     @relation(fields: [lecturerId], references: [id])
   lecturerId  String
   attendance  Attendance[]
 
@@ -67,6 +67,7 @@ model Attendance {
   student     Student  @relation(fields: [studentId], references: [id])
   studentId   String
 
+  // Prevents a student from marking attendance multiple times for one session
   @@unique([sessionId, studentId])
   @@schema("public")
 }
