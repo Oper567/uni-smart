@@ -15,22 +15,17 @@ export default function LecturerDashboard() {
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState<string | null>(null);
 
-  // Memoized fetch function to reuse in useEffect and manual refresh
   const fetchSessions = useCallback(async (lecturerId: string) => {
     setLoading(true);
     try {
       const res = await api.get(`/session/lecturer/${lecturerId}`);
       
-      // Fetch fresh student counts for each session
       const sessionsWithCounts = await Promise.all(res.data.map(async (s: any) => {
         try {
-          /** * FIX: Changed URL to match your backend route: /session/:sessionId/count
-           * Added cache-busting timestamp (?t=...) to ensure real-time data
-           */
+          // Added timestamp to bypass Render/Cloudflare caching
           const countRes = await api.get(`/session/${s.id}/count?t=${Date.now()}`);
           return { ...s, count: countRes.data.count };
         } catch (err) {
-          console.error(`Error fetching count for session ${s.id}`, err);
           return { ...s, count: 0 };
         }
       }));
@@ -51,13 +46,10 @@ export default function LecturerDashboard() {
     const parsedUser = JSON.parse(storedUser);
     setUser(parsedUser);
     
-    // Initial fetch
     fetchSessions(parsedUser.profileId);
 
-    // SYNC FIX: Re-fetch data whenever the user returns to this tab (e.g. after scanning/closing a session)
     const handleFocus = () => fetchSessions(parsedUser.profileId);
     window.addEventListener('focus', handleFocus);
-    
     return () => window.removeEventListener('focus', handleFocus);
   }, [router, fetchSessions]);
 
@@ -70,40 +62,52 @@ export default function LecturerDashboard() {
     setExporting(`${sessionId}-${type}`);
     try {
       const response = await api.get(`/session/export/${type}/${sessionId}`, { 
-        responseType: 'blob',
-        timeout: 60000, // 👈 Give it 60 seconds to generate
+        responseType: 'blob', // 👈 Crucial for binary data
+        timeout: 45000,       // 👈 Increased to 45s for Render Free Tier PDF generation
         headers: { 'Cache-Control': 'no-cache' } 
       });
-      // EXPORT FIX: Check if the blob is actually a JSON error (e.g. "No records found")
+
+      // FIX: Handle cases where the backend returns a JSON error instead of a file
       if (response.data.type === 'application/json') {
         const text = await response.data.text();
         const errorData = JSON.parse(text);
-        throw new Error(errorData.error || "Session has no attendance records.");
+        throw new Error(errorData.error || "Export failed.");
       }
       
       const blobType = type === 'csv' ? 'text/csv' : 'application/pdf';
       const extension = type === 'csv' ? 'csv' : 'pdf';
       
+      // Safety check for empty blobs
+      if (response.data.size < 100) {
+        throw new Error("The generated file is empty. Ensure students have signed in.");
+      }
+
       const blob = new Blob([response.data], { type: blobType });
-
-      // Safety check: if blob is tiny, the backend likely sent an empty file
-      if (blob.size < 100) throw new Error("File is empty. This session likely has no records.");
-
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `${courseCode}_Attendance_${new Date().toISOString().split('T')[0]}.${extension}`);
+      
+      const filename = `${courseCode}_Attendance_${new Date().toISOString().split('T')[0]}.${extension}`;
+      link.setAttribute('download', filename);
+      
       document.body.appendChild(link);
       link.click();
 
+      // Cleanup
       setTimeout(() => {
         document.body.removeChild(link);
         window.URL.revokeObjectURL(url);
-      }, 150);
+      }, 200);
       
     } catch (err: any) {
-      console.error("Export Error:", err);
-      alert(err.message || `Export failed. Please ensure there are records for this session.`);
+      console.error("Detailed Export Error:", err);
+      
+      // Better Error Messages for the UI
+      let errorMessage = "Export failed. Please try again.";
+      if (err.message) errorMessage = err.message;
+      if (err.code === 'ECONNABORTED') errorMessage = "Request timed out. The server is taking too long.";
+      
+      alert(errorMessage);
     } finally {
       setExporting(null);
     }
@@ -144,7 +148,7 @@ export default function LecturerDashboard() {
              </motion.button>
           </div>
           <h2 className="text-3xl font-black tracking-tight text-slate-800">
-            Welcome, {user.name.split(' ')[0]}
+            Welcome, {user.name?.split(' ')[0]}
           </h2>
           <p className="text-slate-500 text-sm font-medium flex items-center gap-1">
              <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
@@ -166,14 +170,14 @@ export default function LecturerDashboard() {
           <ChevronRight size={20} className="opacity-60" />
         </motion.button>
 
-        {/* Stats Section */}
+        {/* Stats Row */}
         <div className="flex gap-4 overflow-x-auto pb-4 -mx-6 px-6 no-scrollbar">
           <StatMiniCard label="Courses" value={user.courses?.length || 0} color="blue" />
           <StatMiniCard label="Sessions" value={sessions.length} color="indigo" />
           <StatMiniCard label="Status" value="Live" color="emerald" />
         </div>
 
-        {/* Recent Activity List */}
+        {/* Activity List */}
         <section className="space-y-4">
           <h3 className="font-black text-lg text-slate-700 flex items-center gap-2">
             <History size={20} className="text-blue-500" /> Recent Activity
@@ -210,7 +214,6 @@ export default function LecturerDashboard() {
                     </p>
                   </div>
 
-                  {/* Export Buttons */}
                   <div className="grid grid-cols-2 gap-3 pt-2">
                     <ExportButton 
                       label="CSV" 
@@ -229,7 +232,7 @@ export default function LecturerDashboard() {
                 </motion.div>
               ))
             ) : (
-              <div className="text-center py-16 bg-white border border-blue-50 rounded-[2.5rem] shadow-inner">
+              <div className="text-center py-16 bg-white border border-blue-50 rounded-[2.5rem]">
                 <BookOpen size={40} className="mx-auto text-blue-100 mb-2" />
                 <p className="text-slate-400 text-sm font-medium">No sessions recorded yet</p>
               </div>
@@ -241,6 +244,7 @@ export default function LecturerDashboard() {
   );
 }
 
+// Sub-components
 function StatMiniCard({ label, value, color }: any) {
   const colors: any = {
     blue: "bg-blue-50 text-blue-600 border-blue-100",
