@@ -25,7 +25,6 @@ export const startSession = async (req: AuthRequest, res: Response) => {
 
     const expiryTime = new Date(Date.now() + 15 * 60000); 
 
-    // Create session first to get database ID
     const session = await prisma.session.create({
       data: {
         courseCode,
@@ -36,7 +35,6 @@ export const startSession = async (req: AuthRequest, res: Response) => {
       }
     });
 
-    // Generate JWT including the session ID
     const token = jwt.sign(
       { sessionId: session.id, lecturerId: profileId, courseCode },
       process.env.QR_SECRET || 'fallback_qr_secret',
@@ -72,7 +70,22 @@ export const closeSession = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// --- 3. GET ATTENDANCE COUNT ---
+// --- 3. GET LECTURER SESSIONS (THE MISSING FUNCTION) ---
+export const getLecturerSessions = async (req: Request, res: Response) => {
+  const { lecturerId } = req.params;
+  try {
+    const sessions = await prisma.session.findMany({
+      where: { lecturerId },
+      orderBy: { createdAt: 'desc' }
+    });
+    res.json(sessions);
+  } catch (error) {
+    console.error("Fetch sessions error:", error);
+    res.status(500).json({ error: "Failed to fetch session history" });
+  }
+};
+
+// --- 4. GET ATTENDANCE COUNT ---
 export const getSessionCount = async (req: Request, res: Response) => {
   const { sessionId } = req.params;
   try {
@@ -85,7 +98,7 @@ export const getSessionCount = async (req: Request, res: Response) => {
   }
 };
 
-// --- 4. EXPORT CSV ---
+// --- 5. EXPORT CSV ---
 export const exportAttendanceCSV = async (req: AuthRequest, res: Response) => {
   const { sessionId } = req.params;
   try {
@@ -112,7 +125,7 @@ export const exportAttendanceCSV = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// --- 5. EXPORT PDF ---
+// --- 6. EXPORT PDF ---
 export const exportAttendancePDF = async (req: AuthRequest, res: Response) => {
   const { sessionId } = req.params;
   try {
