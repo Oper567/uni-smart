@@ -5,7 +5,7 @@ import {
   PlusCircle, LogOut, Users, BookOpen, Layout, 
   History, FileSpreadsheet, FileText, Loader2, RefreshCw, Calendar, ChevronRight
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import api from '@/lib/api';
 
 export default function LecturerDashboard() {
@@ -29,8 +29,17 @@ export default function LecturerDashboard() {
   const fetchSessions = async (lecturerId: string) => {
     setLoading(true);
     try {
+      // Fetch sessions and student counts in parallel
       const res = await api.get(`/session/lecturer/${lecturerId}`);
-      setSessions(res.data);
+      const sessionsWithCounts = await Promise.all(res.data.map(async (s: any) => {
+        try {
+          const countRes = await api.get(`/session/count/${s.id}`);
+          return { ...s, count: countRes.data.count };
+        } catch {
+          return { ...s, count: 0 };
+        }
+      }));
+      setSessions(sessionsWithCounts);
     } catch (err) {
       console.error("Failed to fetch sessions");
     } finally {
@@ -49,18 +58,27 @@ export default function LecturerDashboard() {
       const response = await api.get(`/session/export/${type}/${sessionId}`, { 
         responseType: 'blob' 
       });
+
       const blobType = type === 'csv' ? 'text/csv' : 'application/pdf';
       const extension = type === 'csv' ? 'csv' : 'pdf';
-      const url = window.URL.createObjectURL(new Blob([response.data], { type: blobType }));
+      
+      const blob = new Blob([response.data], { type: blobType });
+      const url = window.URL.createObjectURL(blob);
+      
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `${type.toUpperCase()}_${courseCode}.${extension}`);
+      link.setAttribute('download', `${courseCode}_Attendance.${extension}`);
       document.body.appendChild(link);
       link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
+
+      // Small delay to ensure the browser captures the stream before revocation
+      setTimeout(() => {
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      }, 150);
+      
     } catch (err) {
-      alert(`Export failed. Records might be empty.`);
+      alert(`Export failed. This session might not have any records.`);
     } finally {
       setExporting(null);
     }
@@ -109,7 +127,7 @@ export default function LecturerDashboard() {
           </p>
         </header>
 
-        {/* Start Button - Vibrant Blue Action */}
+        {/* Start Button */}
         <motion.button 
           whileHover={{ y: -2 }}
           whileTap={{ scale: 0.97 }}
@@ -123,7 +141,7 @@ export default function LecturerDashboard() {
           <ChevronRight size={20} className="opacity-60" />
         </motion.button>
 
-        {/* Stats Scroll - Soft Blue Backgrounds */}
+        {/* Stats Scroll */}
         <div className="flex gap-4 overflow-x-auto pb-4 -mx-6 px-6 no-scrollbar">
           <StatMiniCard label="Courses" value={user.courses?.length || 0} color="blue" />
           <StatMiniCard label="Sessions" value={sessions.length} color="indigo" />
@@ -149,9 +167,15 @@ export default function LecturerDashboard() {
                 >
                   <div className="flex justify-between items-start">
                     <div className="space-y-1">
-                      <span className="bg-blue-50 text-blue-700 text-[10px] font-black px-3 py-1 rounded-lg uppercase tracking-wider">
-                        {session.courseCode}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="bg-blue-50 text-blue-700 text-[10px] font-black px-3 py-1 rounded-lg uppercase tracking-wider">
+                          {session.courseCode}
+                        </span>
+                        {/* Student Count Badge */}
+                        <span className="flex items-center gap-1 bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-1 rounded-lg">
+                          <Users size={10} /> {session.count || 0}
+                        </span>
+                      </div>
                       <div className="flex items-center gap-2 text-slate-400 text-xs mt-2 font-bold">
                         <Calendar size={12} className="text-blue-300" />
                         {new Date(session.createdAt).toLocaleDateString(undefined, { dateStyle: 'medium' })}
@@ -192,7 +216,6 @@ export default function LecturerDashboard() {
   );
 }
 
-// Helper Components for Cleaner Code
 function StatMiniCard({ label, value, color }: any) {
   const colors: any = {
     blue: "bg-blue-50 text-blue-600 border-blue-100",
