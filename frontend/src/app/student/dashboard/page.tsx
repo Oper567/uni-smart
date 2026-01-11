@@ -14,14 +14,23 @@ export default function StudentDashboard() {
   const [courseStats, setCourseStats] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Memoized fetch function to prevent unnecessary re-renders
-  const fetchAttendanceStats = useCallback(async (studentId: string) => {
+  // 1. Updated fetch function to sync Profile (Matric/Level) + Stats
+  const fetchDashboardData = useCallback(async (studentId: string) => {
     try {
       setLoading(true);
       const res = await api.get(`/student/stats/${studentId}`);
-      setCourseStats(res.data);
+      
+      // Update stats array
+      setCourseStats(res.data.courseStats || []);
+      
+      // Update User state with fresh DB data (Fixes "Pending" issue)
+      setUser((prev: any) => ({
+        ...prev,
+        matricNo: res.data.matricNo,
+        level: res.data.level
+      }));
     } catch (err) {
-      console.error("Failed to fetch stats");
+      console.error("Failed to fetch dashboard data");
     } finally {
       setLoading(false);
     }
@@ -38,15 +47,14 @@ export default function StudentDashboard() {
     setUser(parsedUser);
 
     // Initial Fetch
-    fetchAttendanceStats(parsedUser.profileId);
+    fetchDashboardData(parsedUser.profileId);
 
     // REFRESH LOGIC: Listen for window focus
-    // This triggers when the user returns to this tab after scanning
-    const onFocus = () => fetchAttendanceStats(parsedUser.profileId);
+    const onFocus = () => fetchDashboardData(parsedUser.profileId);
     window.addEventListener('focus', onFocus);
     
     return () => window.removeEventListener('focus', onFocus);
-  }, [router, fetchAttendanceStats]);
+  }, [router, fetchDashboardData]);
 
   const handleLogout = () => {
     localStorage.clear();
@@ -81,20 +89,28 @@ export default function StudentDashboard() {
       </nav>
 
       <main className="p-6 space-y-8 pb-32 max-w-2xl mx-auto">
-        {/* Profile Header */}
+        {/* Profile Header - UPDATED Logic */}
         <header className="flex items-center gap-4 bg-white p-6 rounded-[2.5rem] shadow-xl shadow-blue-900/5 border border-blue-50">
           <div className="w-16 h-16 bg-gradient-to-tr from-blue-600 to-indigo-400 rounded-full flex items-center justify-center text-white border-4 border-white shadow-lg">
             <User size={30} />
           </div>
           <div>
-            <h2 className="text-xl font-black text-slate-800 leading-none">{user.name}</h2>
+            <div className="flex items-center gap-2">
+               <h2 className="text-xl font-black text-slate-800 leading-none">{user.name}</h2>
+               {/* Added Level Badge */}
+               {user.level && (
+                 <span className="bg-blue-100 text-blue-700 text-[10px] px-2 py-0.5 rounded-lg font-black uppercase">
+                   {user.level}L
+                 </span>
+               )}
+            </div>
             <p className="text-slate-400 text-[10px] font-black mt-1 uppercase tracking-widest">
-              {user.student?.matricNo || 'MATRIC NO PENDING'}
+              {user.matricNo || 'MATRIC NO PENDING'}
             </p>
           </div>
         </header>
 
-        {/* Scan FAB (Floating Action Button style) */}
+        {/* Scan FAB */}
         <motion.button 
           whileHover={{ y: -4, scale: 1.01 }}
           whileTap={{ scale: 0.97 }}
@@ -118,7 +134,7 @@ export default function StudentDashboard() {
               <GraduationCap size={22} className="text-blue-600" /> My Courses
             </h3>
             <button 
-              onClick={() => fetchAttendanceStats(user.profileId)}
+              onClick={() => fetchDashboardData(user.profileId)}
               className="text-blue-600 text-xs font-bold hover:underline"
             >
               Refresh
