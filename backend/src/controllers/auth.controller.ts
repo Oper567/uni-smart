@@ -5,8 +5,8 @@ import jwt from 'jsonwebtoken';
 
 // --- 1. REGISTER ---
 export const register = async (req: Request, res: Response) => {
-  // Destructure the new fields: department and courses
-  const { email, password, name, role, staffId, matricNo, department, courses } = req.body;
+  // 1. Destructure "level" from the request body
+  const { email, password, name, role, staffId, matricNo, department, courses, level } = req.body;
   const normalizedRole = role?.toUpperCase();
   const normalizedEmail = email?.toLowerCase();
 
@@ -19,22 +19,25 @@ export const register = async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Assigned courses array is required for lecturers" });
     }
   }
-  if (normalizedRole === 'STUDENT' && !matricNo) {
-    return res.status(400).json({ error: "matricNo is required for students" });
+  
+  if (normalizedRole === 'STUDENT') {
+    if (!matricNo) return res.status(400).json({ error: "matricNo is required for students" });
+    // 2. Validate that level is provided for students
+    if (!level) return res.status(400).json({ error: "Academic level is required for students" });
   }
 
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const newUser = await prisma.$transaction(async (tx) => {
-      // Create Base User with Department
+      // Create Base User
       const user = await tx.user.create({
         data: {
           email: normalizedEmail,
           name,
           role: normalizedRole,
           password: hashedPassword,
-          department, // 👈 Saved to User table
+          department,
         },
       });
 
@@ -44,12 +47,17 @@ export const register = async (req: Request, res: Response) => {
           data: { 
             userId: user.id, 
             staffId, 
-            courses // 👈 Saved to Lecturer table (e.g., ["DCOT205", "CSC101"])
+            courses 
           }
         });
       } else if (normalizedRole === 'STUDENT') {
+        // 3. Save "level" to the student table
         await tx.student.create({
-          data: { userId: user.id, matricNo }
+          data: { 
+            userId: user.id, 
+            matricNo,
+            level: level.toString() // Ensure it's stored as a string
+          }
         });
       }
       return user;
@@ -81,8 +89,9 @@ export const login = async (req: Request, res: Response) => {
     const user = await prisma.user.findUnique({
       where: { email: email.toLowerCase() },
       include: { 
-        student: { select: { id: true, matricNo: true } }, 
-        lecturer: { select: { id: true, staffId: true, courses: true } } // 👈 Include courses
+        // 4. Include "level" in the login response so the frontend can display it
+        student: { select: { id: true, matricNo: true, level: true } }, 
+        lecturer: { select: { id: true, staffId: true, courses: true } }
       }
     });
 
@@ -104,10 +113,11 @@ export const login = async (req: Request, res: Response) => {
         id: user.id,
         name: user.name, 
         role: user.role, 
-        department: user.department, // 👈 Send department to frontend
+        department: user.department,
         profileId,
-        courses: user.lecturer?.courses || [], // 👈 Send assigned courses to dashboard
+        courses: user.lecturer?.courses || [],
         matricNo: user.student?.matricNo,
+        level: user.student?.level, // 5. Send level to the dashboard
         staffId: user.lecturer?.staffId
       }
     });

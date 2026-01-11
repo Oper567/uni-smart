@@ -4,28 +4,35 @@ import { useRouter } from 'next/navigation';
 import api from '@/lib/api';
 import { 
   User, Mail, Lock, Building, BookOpen, 
-  GraduationCap, Loader2, Eye, EyeOff, CheckCircle2 
+  GraduationCap, Loader2, Eye, EyeOff, CheckCircle2,
+  Layers
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const DEPARTMENTS = ["Computer Science", "Information Communication System", "Cyber Security", "Data Science", "Software Engineering", "Information System"];
+const LEVELS = ["100", "200", "300", "400", "500"];
 
 export default function RegisterPage() {
   const router = useRouter();
   const [role, setRole] = useState('STUDENT');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [isSuccess, setIsSuccess] = useState(false); // New Success State
+  const [isSuccess, setIsSuccess] = useState(false);
+  
   const [formData, setFormData] = useState({
-    name: '', email: '', password: '',
-    department: '', matricNo: '', staffId: '',
-    courses: '' 
+    name: '', 
+    email: '', 
+    password: '',
+    department: '', 
+    matricNo: '', 
+    staffId: '',
+    courses: '',
+    level: '' // Track level state
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // 1. Basic Client-side Validation
     if (formData.password.length < 6) {
       return alert("Password must be at least 6 characters long");
     }
@@ -35,19 +42,17 @@ export default function RegisterPage() {
     const payload = {
       ...formData,
       role,
+      // Only include level if they are a student
+      level: role === 'STUDENT' ? formData.level : null,
       courses: role === 'LECTURER' 
         ? formData.courses.split(',').map(c => c.trim().toUpperCase()).filter(c => c !== "") 
         : []
     };
 
     try {
-      // 2. Registration API Call
       await api.post('/auth/register', payload);
-      
-      // 3. Instead of immediate redirect, show success for email verification
       setIsSuccess(true);
       
-      // Auto redirect after 5 seconds if they don't click anything
       setTimeout(() => {
         router.push('/login');
       }, 6000);
@@ -92,13 +97,11 @@ export default function RegisterPage() {
         animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-lg bg-white sm:shadow-2xl sm:border border-slate-100 rounded-[2.5rem] p-6 sm:p-10"
       >
-        {/* Header */}
         <div className="text-center mb-8">
           <h2 className="text-4xl font-black text-black tracking-tighter mb-2">Join UniSmart</h2>
           <p className="text-slate-600 font-medium tracking-tight">Create your {role.toLowerCase()} account</p>
         </div>
         
-        {/* Role Switcher */}
         <div className="flex bg-slate-100 p-1.5 rounded-2xl mb-8">
           {['STUDENT', 'LECTURER'].map((r) => (
             <button 
@@ -106,8 +109,7 @@ export default function RegisterPage() {
               type="button"
               onClick={() => {
                 setRole(r);
-                // Clear role-specific fields when switching
-                setFormData(prev => ({ ...prev, matricNo: '', staffId: '', courses: '' }));
+                setFormData(prev => ({ ...prev, matricNo: '', staffId: '', courses: '', level: '' }));
               }}
               className={`flex-1 py-3 rounded-xl font-bold text-sm transition-all duration-300 ${
                 role === r ? 'bg-white shadow-sm text-black' : 'text-slate-500 hover:text-slate-700'
@@ -151,17 +153,18 @@ export default function RegisterPage() {
             </button>
           </div>
           
-          <div className="relative">
-            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-black"><Building size={20}/></div>
+          <div className="relative group">
+            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-black transition-transform group-focus-within:scale-110"><Building size={20}/></div>
             <select 
               required
-              className="w-full pl-12 pr-10 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-black outline-none transition-all text-[16px] text-black appearance-none font-medium"
+              className="w-full pl-12 pr-10 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-black focus:bg-white outline-none transition-all text-[16px] text-black appearance-none font-medium"
               value={formData.department}
               onChange={(e) => setFormData({...formData, department: e.target.value})}
             >
               <option value="">Select Department</option>
               {DEPARTMENTS.map(dept => <option key={dept} value={dept}>{dept}</option>)}
             </select>
+            <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 text-xs">▼</div>
           </div>
 
           <AnimatePresence mode="wait">
@@ -171,6 +174,7 @@ export default function RegisterPage() {
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}
+                className="space-y-4"
               >
                 <Input 
                   icon={<GraduationCap size={20}/>} 
@@ -178,6 +182,21 @@ export default function RegisterPage() {
                   value={formData.matricNo} 
                   onChange={(v) => setFormData({...formData, matricNo: v.toUpperCase()})} 
                 />
+
+                {/* LEVEL SELECTOR FOR STUDENTS */}
+                <div className="relative group">
+                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-black transition-transform group-focus-within:scale-110"><Layers size={20}/></div>
+                  <select 
+                    required
+                    className="w-full pl-12 pr-10 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-black focus:bg-white outline-none transition-all text-[16px] text-black appearance-none font-medium"
+                    value={formData.level}
+                    onChange={(e) => setFormData({...formData, level: e.target.value})}
+                  >
+                    <option value="">Select Level</option>
+                    {LEVELS.map(lvl => <option key={lvl} value={lvl}>{lvl} Level</option>)}
+                  </select>
+                  <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 text-xs">▼</div>
+                </div>
               </motion.div>
             ) : (
               <motion.div
@@ -221,7 +240,6 @@ export default function RegisterPage() {
   );
 }
 
-// Input component stays mostly the same but icon color is inherited
 function Input({ icon, type = "text", placeholder, value, onChange }: { 
   icon: React.ReactNode, 
   type?: string, 
