@@ -14,14 +14,23 @@ export default function StudentDashboard() {
   const [courseStats, setCourseStats] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Memoized fetch function to prevent unnecessary re-renders
-  const fetchAttendanceStats = useCallback(async (studentId: string) => {
+  // 1. IMPROVED FETCH: Updates both Course Stats AND Profile Info
+  const fetchDashboardData = useCallback(async (studentId: string) => {
     try {
       setLoading(true);
       const res = await api.get(`/student/stats/${studentId}`);
-      setCourseStats(res.data);
+      
+      // Update courses
+      setCourseStats(res.data.courseStats || []);
+
+      // SYNC PROFILE: This replaces "MATRIC NO PENDING" with real data from DB
+      setUser((prev: any) => ({
+        ...prev,
+        matricNo: res.data.matricNo,
+        level: res.data.level
+      }));
     } catch (err) {
-      console.error("Failed to fetch stats");
+      console.error("Failed to fetch dashboard data");
     } finally {
       setLoading(false);
     }
@@ -38,15 +47,12 @@ export default function StudentDashboard() {
     setUser(parsedUser);
 
     // Initial Fetch
-    fetchAttendanceStats(parsedUser.profileId);
+    fetchDashboardData(parsedUser.profileId);
 
-    // REFRESH LOGIC: Listen for window focus
-    // This triggers when the user returns to this tab after scanning
-    const onFocus = () => fetchAttendanceStats(parsedUser.profileId);
+    const onFocus = () => fetchDashboardData(parsedUser.profileId);
     window.addEventListener('focus', onFocus);
-    
     return () => window.removeEventListener('focus', onFocus);
-  }, [router, fetchAttendanceStats]);
+  }, [router, fetchDashboardData]);
 
   const handleLogout = () => {
     localStorage.clear();
@@ -57,7 +63,7 @@ export default function StudentDashboard() {
 
   return (
     <div className="min-h-screen bg-[#F8FAFF] text-slate-900 font-[family-name:var(--font-geist-sans)]">
-      {/* Sticky Navigation */}
+      {/* Navigation */}
       <nav className="sticky top-0 z-20 bg-white/70 backdrop-blur-xl border-b border-blue-50 px-6 py-4 flex justify-between items-center">
         <div className="flex items-center gap-2">
           <div className="bg-blue-600 p-2 rounded-xl text-white shadow-lg shadow-blue-200">
@@ -81,20 +87,27 @@ export default function StudentDashboard() {
       </nav>
 
       <main className="p-6 space-y-8 pb-32 max-w-2xl mx-auto">
-        {/* Profile Header */}
+        {/* Profile Header - FIXED MATRIC NO */}
         <header className="flex items-center gap-4 bg-white p-6 rounded-[2.5rem] shadow-xl shadow-blue-900/5 border border-blue-50">
           <div className="w-16 h-16 bg-gradient-to-tr from-blue-600 to-indigo-400 rounded-full flex items-center justify-center text-white border-4 border-white shadow-lg">
             <User size={30} />
           </div>
           <div>
-            <h2 className="text-xl font-black text-slate-800 leading-none">{user.name}</h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-xl font-black text-slate-800 leading-none">{user.name}</h2>
+              {user.level && (
+                <span className="bg-blue-100 text-blue-700 text-[9px] px-2 py-0.5 rounded-full font-black">
+                  {user.level}L
+                </span>
+              )}
+            </div>
             <p className="text-slate-400 text-[10px] font-black mt-1 uppercase tracking-widest">
-              {user.student?.matricNo || 'MATRIC NO PENDING'}
+              {user.matricNo || 'MATRIC NO PENDING'}
             </p>
           </div>
         </header>
 
-        {/* Scan FAB (Floating Action Button style) */}
+        {/* Scan FAB */}
         <motion.button 
           whileHover={{ y: -4, scale: 1.01 }}
           whileTap={{ scale: 0.97 }}
@@ -111,14 +124,14 @@ export default function StudentDashboard() {
           <p className="text-[10px] uppercase tracking-[0.3em] font-bold opacity-70 relative z-10">Tap to open camera</p>
         </motion.button>
 
-        {/* Course Statistics Section */}
+        {/* Course Statistics */}
         <section className="space-y-4">
           <div className="flex justify-between items-end px-2">
             <h3 className="font-black text-lg text-slate-700 flex items-center gap-2">
               <GraduationCap size={22} className="text-blue-600" /> My Courses
             </h3>
             <button 
-              onClick={() => fetchAttendanceStats(user.profileId)}
+              onClick={() => fetchDashboardData(user.profileId)}
               className="text-blue-600 text-xs font-bold hover:underline"
             >
               Refresh
@@ -134,20 +147,16 @@ export default function StudentDashboard() {
               <AnimatePresence mode='popLayout'>
                 {courseStats.length > 0 ? (
                   courseStats.map((course) => (
-                    <CourseCard key={course.code} course={course} />
+                    <CourseCard 
+                      key={course.code} 
+                      course={course} 
+                      onClick={() => router.push(`/student/course/${course.code}`)} 
+                    />
                   ))
                 ) : (
-                  <motion.div 
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="bg-white p-12 rounded-[2.5rem] text-center border-2 border-dashed border-slate-100"
-                  >
-                    <div className="bg-slate-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <GraduationCap className="text-slate-300" size={32} />
-                    </div>
+                  <div className="bg-white p-12 rounded-[2.5rem] text-center border-2 border-dashed border-slate-100">
                     <p className="text-slate-400 font-bold">No attendance records yet.</p>
-                    <p className="text-slate-300 text-xs mt-1">Your courses will appear here once you scan.</p>
-                  </motion.div>
+                  </div>
                 )}
               </AnimatePresence>
             )}
@@ -158,7 +167,8 @@ export default function StudentDashboard() {
   );
 }
 
-function CourseCard({ course }: { course: any }) {
+// CourseCard Component with working Click
+function CourseCard({ course, onClick }: { course: any; onClick: () => void }) {
   const getHealthColor = (percent: number) => {
     if (percent >= 75) return 'text-emerald-600 bg-emerald-50 border-emerald-100';
     if (percent >= 50) return 'text-amber-600 bg-amber-50 border-amber-100';
@@ -168,9 +178,8 @@ function CourseCard({ course }: { course: any }) {
   return (
     <motion.div 
       layout
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.95 }}
+      whileTap={{ scale: 0.98 }}
+      onClick={onClick}
       className="bg-white p-5 rounded-[2.2rem] border border-blue-50 shadow-sm flex items-center justify-between group hover:border-blue-200 hover:shadow-md transition-all cursor-pointer"
     >
       <div className="flex items-center gap-4">
