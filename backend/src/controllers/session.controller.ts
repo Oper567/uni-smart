@@ -103,13 +103,16 @@ export const getSessionCount = async (req: Request, res: Response) => {
   }
 };
 
-// --- 5. EXPORT CSV ---
+// --- 5. EXPORT CSV (Updated with Level & Status) ---
 export const exportAttendanceCSV = async (req: AuthRequest, res: Response) => {
   const { sessionId } = req.params;
   try {
     const attendance = await prisma.attendance.findMany({
       where: { sessionId },
-      include: { student: { include: { user: true } }, session: true },
+      include: { 
+        student: { include: { user: true } }, 
+        session: true 
+      },
     });
 
     if (attendance.length === 0) return res.status(404).json({ error: "No records to export" });
@@ -117,7 +120,9 @@ export const exportAttendanceCSV = async (req: AuthRequest, res: Response) => {
     const data = attendance.map((rec) => ({
       "Student Name": rec.student.user.name,
       "Matric No": rec.student.matricNo,
-      Department: rec.student.user.department,
+      "Level": rec.student.level ? `${rec.student.level}L` : "N/A", // Added Level
+      "Department": rec.student.user.department,
+      "Status": "Present", // Added Status
       "Time In": rec.timestamp.toLocaleString(),
     }));
 
@@ -130,13 +135,16 @@ export const exportAttendanceCSV = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// --- 6. EXPORT PDF ---
+// --- 6. EXPORT PDF (Updated with Level & Status) ---
 export const exportAttendancePDF = async (req: AuthRequest, res: Response) => {
   const { sessionId } = req.params;
   try {
     const attendance = await prisma.attendance.findMany({
       where: { sessionId },
-      include: { student: { include: { user: true } }, session: true },
+      include: { 
+        student: { include: { user: true } }, 
+        session: true 
+      },
       orderBy: { student: { user: { name: "asc" } } },
     });
 
@@ -144,37 +152,40 @@ export const exportAttendancePDF = async (req: AuthRequest, res: Response) => {
 
     const doc = new jsPDF();
     
-    doc.setFontSize(20);
+    doc.setFontSize(18);
     doc.setTextColor(37, 99, 235);
-    doc.text(`Attendance Report: ${attendance[0].session.courseCode}`, 14, 22);
+    doc.text(`Attendance Report: ${attendance[0].session.courseCode}`, 14, 20);
+    
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 28);
 
     const tableData = attendance.map((rec) => [
       rec.student.user.name,
       rec.student.matricNo,
+      rec.student.level ? `${rec.student.level}L` : "N/A", // Added Level
       rec.student.user.department,
+      "Present", // Added Status
       new Date(rec.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     ]);
 
-    // FIX: Using (autoTable as any) to bypass TypeScript "not callable" error on build
     (autoTable as any)(doc, {
       startY: 35,
-      head: [["Full Name", "Matric Number", "Department", "Sign-in Time"]],
+      head: [["Full Name", "Matric Number", "Level", "Department", "Status", "Time In"]],
       body: tableData,
-      headStyles: { fillColor: [37, 99, 235], fontSize: 11 },
+      headStyles: { fillColor: [37, 99, 235], fontSize: 10 },
+      styles: { font: "helvetica", fontSize: 9 },
       alternateRowStyles: { fillColor: [248, 250, 255] },
-      styles: { font: "helvetica" }
     });
 
-    const pdfOutput = doc.output("arraybuffer");
-    const buffer = Buffer.from(new Uint8Array(pdfOutput));
+    const buffer = Buffer.from(doc.output("arraybuffer"));
 
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `attachment; filename=Attendance_${attendance[0].session.courseCode}.pdf`);
-    res.setHeader("Content-Length", buffer.length);
     
     return res.status(200).send(buffer);
   } catch (error) {
-    console.error("PDF Export error details:", error);
+    console.error("PDF Export error:", error);
     res.status(500).json({ error: "PDF Export failed" });
   }
 };
@@ -211,10 +222,16 @@ export const markAttendance = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// --- 8. STUDENT STATS ---
+// --- 8. STUDENT STATS (Updated with Profile Data) ---
 export const getStudentStats = async (req: AuthRequest, res: Response) => {
   const studentId = req.user?.profileId;
   try {
+    // Fetch student's own level and matric no to return alongside stats
+    const studentProfile = await prisma.student.findUnique({
+      where: { id: studentId },
+      select: { level: true, matricNo: true }
+    });
+
     const studentAttendances = await prisma.attendance.findMany({
       where: { studentId: studentId! },
       select: { session: { select: { courseCode: true } } },
@@ -235,7 +252,13 @@ export const getStudentStats = async (req: AuthRequest, res: Response) => {
         percentage: total > 0 ? Math.round((attended / total) * 100) : 0 
       };
     }));
-    res.json(stats);
+
+    // Return an object containing both stats and basic student profile info
+    res.json({
+      matricNo: studentProfile?.matricNo,
+      level: studentProfile?.level,
+      courseStats: stats
+    });
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch student statistics" });
   }
