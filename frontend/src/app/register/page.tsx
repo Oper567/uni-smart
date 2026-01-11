@@ -4,8 +4,7 @@ import { useRouter } from 'next/navigation';
 import api from '@/lib/api';
 import { 
   User, Mail, Lock, Building, BookOpen, 
-  GraduationCap, Loader2, Eye, EyeOff, CheckCircle2,
-  Layers
+  GraduationCap, Loader2, Eye, EyeOff, Layers 
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -17,7 +16,6 @@ export default function RegisterPage() {
   const [role, setRole] = useState('STUDENT');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [isSuccess, setIsSuccess] = useState(false);
   
   const [formData, setFormData] = useState({
     name: '', 
@@ -27,7 +25,7 @@ export default function RegisterPage() {
     matricNo: '', 
     staffId: '',
     courses: '',
-    level: '' // Track level state
+    level: '' 
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -42,7 +40,6 @@ export default function RegisterPage() {
     const payload = {
       ...formData,
       role,
-      // Only include level if they are a student
       level: role === 'STUDENT' ? formData.level : null,
       courses: role === 'LECTURER' 
         ? formData.courses.split(',').map(c => c.trim().toUpperCase()).filter(c => c !== "") 
@@ -51,11 +48,11 @@ export default function RegisterPage() {
 
     try {
       await api.post('/auth/register', payload);
-      setIsSuccess(true);
       
-      setTimeout(() => {
-        router.push('/login');
-      }, 6000);
+      // Removed isSuccess state
+      // Immediate redirect to login with a success message
+      alert("Account created successfully! Please log in.");
+      router.push('/login');
 
     } catch (err: any) {
       const errorMessage = err.response?.data?.error || "Registration failed. Please try again.";
@@ -64,31 +61,6 @@ export default function RegisterPage() {
       setLoading(false);
     }
   };
-
-  if (isSuccess) {
-    return (
-      <div className="min-h-screen bg-white flex flex-col items-center justify-center p-6 text-center">
-        <motion.div 
-          initial={{ scale: 0 }} 
-          animate={{ scale: 1 }} 
-          className="bg-emerald-500 p-6 rounded-[2.5rem] text-white mb-6 shadow-xl shadow-emerald-100"
-        >
-          <CheckCircle2 size={64} />
-        </motion.div>
-        <h2 className="text-3xl font-black tracking-tight mb-2">Account Created!</h2>
-        <p className="text-slate-500 max-w-sm mb-8 font-medium">
-          We've sent a confirmation link to <span className="text-black font-bold">{formData.email}</span>. 
-          Please verify your email to activate your account.
-        </p>
-        <button 
-          onClick={() => router.push('/login')}
-          className="w-full max-w-xs bg-black text-white py-4 rounded-2xl font-bold shadow-lg"
-        >
-          Back to Login
-        </button>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-white flex flex-col items-center justify-start sm:justify-center p-4 pt-10 font-[family-name:var(--font-geist-sans)]">
@@ -183,7 +155,6 @@ export default function RegisterPage() {
                   onChange={(v) => setFormData({...formData, matricNo: v.toUpperCase()})} 
                 />
 
-                {/* LEVEL SELECTOR FOR STUDENTS */}
                 <div className="relative group">
                   <div className="absolute left-4 top-1/2 -translate-y-1/2 text-black transition-transform group-focus-within:scale-110"><Layers size={20}/></div>
                   <select 
