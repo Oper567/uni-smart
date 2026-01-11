@@ -14,23 +14,23 @@ export default function StudentDashboard() {
   const [courseStats, setCourseStats] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // 1. IMPROVED FETCH: Updates both Course Stats AND Profile Info
-  const fetchDashboardData = useCallback(async (studentId: string) => {
+  // UPDATED: Now refreshes both course stats and profile data (Matric No/Level)
+  const fetchAttendanceStats = useCallback(async (studentId: string) => {
     try {
       setLoading(true);
       const res = await api.get(`/student/stats/${studentId}`);
       
-      // Update courses
+      // Update stats list
       setCourseStats(res.data.courseStats || []);
 
-      // SYNC PROFILE: This replaces "MATRIC NO PENDING" with real data from DB
+      // Update local user state with real DB values to remove "Pending" status
       setUser((prev: any) => ({
         ...prev,
         matricNo: res.data.matricNo,
         level: res.data.level
       }));
     } catch (err) {
-      console.error("Failed to fetch dashboard data");
+      console.error("Failed to fetch stats");
     } finally {
       setLoading(false);
     }
@@ -47,12 +47,14 @@ export default function StudentDashboard() {
     setUser(parsedUser);
 
     // Initial Fetch
-    fetchDashboardData(parsedUser.profileId);
+    fetchAttendanceStats(parsedUser.profileId);
 
-    const onFocus = () => fetchDashboardData(parsedUser.profileId);
+    // REFRESH LOGIC: Listen for window focus
+    const onFocus = () => fetchAttendanceStats(parsedUser.profileId);
     window.addEventListener('focus', onFocus);
+    
     return () => window.removeEventListener('focus', onFocus);
-  }, [router, fetchDashboardData]);
+  }, [router, fetchAttendanceStats]);
 
   const handleLogout = () => {
     localStorage.clear();
@@ -63,7 +65,7 @@ export default function StudentDashboard() {
 
   return (
     <div className="min-h-screen bg-[#F8FAFF] text-slate-900 font-[family-name:var(--font-geist-sans)]">
-      {/* Navigation */}
+      {/* Sticky Navigation */}
       <nav className="sticky top-0 z-20 bg-white/70 backdrop-blur-xl border-b border-blue-50 px-6 py-4 flex justify-between items-center">
         <div className="flex items-center gap-2">
           <div className="bg-blue-600 p-2 rounded-xl text-white shadow-lg shadow-blue-200">
@@ -87,7 +89,7 @@ export default function StudentDashboard() {
       </nav>
 
       <main className="p-6 space-y-8 pb-32 max-w-2xl mx-auto">
-        {/* Profile Header - FIXED MATRIC NO */}
+        {/* Profile Header - FIXED: Displays matricNo from state */}
         <header className="flex items-center gap-4 bg-white p-6 rounded-[2.5rem] shadow-xl shadow-blue-900/5 border border-blue-50">
           <div className="w-16 h-16 bg-gradient-to-tr from-blue-600 to-indigo-400 rounded-full flex items-center justify-center text-white border-4 border-white shadow-lg">
             <User size={30} />
@@ -124,14 +126,14 @@ export default function StudentDashboard() {
           <p className="text-[10px] uppercase tracking-[0.3em] font-bold opacity-70 relative z-10">Tap to open camera</p>
         </motion.button>
 
-        {/* Course Statistics */}
+        {/* Course Statistics Section */}
         <section className="space-y-4">
           <div className="flex justify-between items-end px-2">
             <h3 className="font-black text-lg text-slate-700 flex items-center gap-2">
-              <GraduationCap size={22} className="text-blue-600" /> My Courses
+              < GraduationCap size={22} className="text-blue-600" /> My Courses
             </h3>
             <button 
-              onClick={() => fetchDashboardData(user.profileId)}
+              onClick={() => fetchAttendanceStats(user.profileId)}
               className="text-blue-600 text-xs font-bold hover:underline"
             >
               Refresh
@@ -150,13 +152,20 @@ export default function StudentDashboard() {
                     <CourseCard 
                       key={course.code} 
                       course={course} 
-                      onClick={() => router.push(`/student/course/${course.code}`)} 
+                      onClick={() => router.push(`/student/course/${course.code}`)}
                     />
                   ))
                 ) : (
-                  <div className="bg-white p-12 rounded-[2.5rem] text-center border-2 border-dashed border-slate-100">
+                  <motion.div 
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="bg-white p-12 rounded-[2.5rem] text-center border-2 border-dashed border-slate-100"
+                  >
+                    <div className="bg-slate-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <GraduationCap className="text-slate-300" size={32} />
+                    </div>
                     <p className="text-slate-400 font-bold">No attendance records yet.</p>
-                  </div>
+                  </motion.div>
                 )}
               </AnimatePresence>
             )}
@@ -167,7 +176,7 @@ export default function StudentDashboard() {
   );
 }
 
-// CourseCard Component with working Click
+// UPDATED CourseCard: Now accepts and handles onClick
 function CourseCard({ course, onClick }: { course: any; onClick: () => void }) {
   const getHealthColor = (percent: number) => {
     if (percent >= 75) return 'text-emerald-600 bg-emerald-50 border-emerald-100';
