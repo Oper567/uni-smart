@@ -4,7 +4,7 @@ import dotenv from 'dotenv';
 import helmet from 'helmet';
 
 // 1. GLOBAL ERROR CATCHERS
-process.on('uncaughtException', (err) => {
+process.on('uncaughtException', (err: Error) => {
   console.error('🔥 CRITICAL STARTUP ERROR:', err.message);
   process.exit(1);
 });
@@ -24,7 +24,6 @@ const app = express();
 
 // 4. MIDDLEWARE
 
-// Updated Helmet for Production with your custom domain
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
@@ -34,8 +33,8 @@ app.use(helmet({
         "http://localhost:5001", 
         "https://uni-smart.onrender.com", 
         "https://uni-smart-backend.onrender.com",
-        "https://unismart.com.ng",        // New Root Domain
-        "https://www.unismart.com.ng"    // New WWW Domain
+        "https://unismart.com.ng",
+        "https://www.unismart.com.ng"
       ],
       scriptSrc: ["'self'", "'unsafe-inline'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
@@ -46,7 +45,6 @@ app.use(helmet({
   }
 }));
 
-// ✅ UPDATED CORS: Added unismart.com.ng
 const allowedOrigins = [
   'http://localhost:3000',
   'https://uni-smart.onrender.com',
@@ -56,9 +54,7 @@ const allowedOrigins = [
 
 app.use(cors({
   origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl)
     if (!origin) return callback(null, true);
-    
     if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
@@ -80,10 +76,9 @@ app.use('/api/auth', authRoutes);
 app.use('/api/session', sessionRoutes);
 app.use('/api/student', studentRoutes);
 
-// Attendance Route
 app.post('/api/attendance/mark', authenticate, authorizeRole(['STUDENT']), markAttendance);
 
-// Enhanced Health Check
+// Enhanced Health Check - FIXED TS ERROR
 app.get('/health', async (req, res) => {
   try {
     await prisma.$queryRaw`SELECT 1`; 
@@ -92,12 +87,15 @@ app.get('/health', async (req, res) => {
       database: 'Connected 🐘',
       timestamp: new Date().toISOString()
     });
-  } catch (error) {
-    console.error('❌ Database Health Check Failed:', error.message);
+  } catch (error: unknown) {
+    // Check if error is an instance of Error to access .message safely
+    const errorMessage = error instanceof Error ? error.message : 'Unknown database error';
+    console.error('❌ Database Health Check Failed:', errorMessage);
+    
     res.status(503).json({ 
       status: 'Maintenance Mode 🛠️', 
       database: 'Disconnected',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      error: process.env.NODE_ENV === 'development' ? errorMessage : undefined
     });
   }
 });
@@ -114,7 +112,8 @@ const server = app.listen(Number(PORT), '0.0.0.0', () => {
   `);
 });
 
-server.on('error', (err) => {
+// FIXED TS ERROR: Using NodeJS.ErrnoException to access .code
+server.on('error', (err: NodeJS.ErrnoException) => {
   if (err.code === 'EADDRINUSE') {
     console.error(`❌ Port ${PORT} is already in use.`);
     process.exit(1);
