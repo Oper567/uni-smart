@@ -3,7 +3,6 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import helmet from 'helmet';
 
-
 // 1. GLOBAL ERROR CATCHERS
 process.on('uncaughtException', (err) => {
   console.error('🔥 CRITICAL STARTUP ERROR:', err.message);
@@ -25,34 +24,41 @@ const app = express();
 
 // 4. MIDDLEWARE
 
-// Updated Helmet for Production
+// Updated Helmet for Production with your custom domain
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      // Added your Render URLs to the allowed connect sources
       connectSrc: [
         "'self'", 
         "http://localhost:5001", 
         "https://uni-smart.onrender.com", 
-        "https://uni-smart-backend.onrender.com"
+        "https://uni-smart-backend.onrender.com",
+        "https://unismart.com.ng",        // New Root Domain
+        "https://www.unismart.com.ng"    // New WWW Domain
       ],
       scriptSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:", "blob:"],
       objectSrc: ["'none'"],
       upgradeInsecureRequests: [],
     },
   }
 }));
 
-// ✅ FIXED CORS: Allowing both local and production URLs
+// ✅ UPDATED CORS: Added unismart.com.ng
 const allowedOrigins = [
   'http://localhost:3000',
-  'https://uni-smart.onrender.com' // Your frontend URL
+  'https://uni-smart.onrender.com',
+  'https://unismart.com.ng',
+  'https://www.unismart.com.ng'
 ];
 
 app.use(cors({
   origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl)
     if (!origin) return callback(null, true);
+    
     if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
@@ -61,7 +67,8 @@ app.use(cors({
     }
   },
   credentials: true,
-  // ADD THIS LINE BELOW:
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   exposedHeaders: ['Content-Disposition', 'Content-Type', 'Content-Length']
 }));
 
@@ -85,7 +92,7 @@ app.get('/health', async (req, res) => {
       database: 'Connected 🐘',
       timestamp: new Date().toISOString()
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('❌ Database Health Check Failed:', error.message);
     res.status(503).json({ 
       status: 'Maintenance Mode 🛠️', 
@@ -102,12 +109,12 @@ const server = app.listen(Number(PORT), '0.0.0.0', () => {
   console.log(`
     🚀 SYSTEM ONLINE
     ✅ Server running on port ${PORT}
-    🐘 Database: Supabase PostgreSQL
-    🔐 Security: CORS Updated for Production
+    🐘 Database: Connected
+    🔐 Security: CORS & Helmet configured for unismart.com.ng
   `);
 });
 
-server.on('error', (err: any) => {
+server.on('error', (err) => {
   if (err.code === 'EADDRINUSE') {
     console.error(`❌ Port ${PORT} is already in use.`);
     process.exit(1);
