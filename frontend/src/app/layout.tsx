@@ -1,9 +1,10 @@
-'use client'; // This must be at the very top now
+'use client'; 
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Link from "next/link";
 import { QrCode } from "lucide-react";
 import { usePathname } from "next/navigation";
+import { useEffect } from "react"; // Added useEffect for keep-alive
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -22,7 +23,35 @@ export default function RootLayout({
 }>) {
   const pathname = usePathname();
 
-  // Define routes that should hide the Global Nav/Footer
+  // --- RENDER KEEP-ALIVE HACK ---
+  useEffect(() => {
+    // We ping both the frontend and backend to keep the services warm
+    const urls = [
+      'https://unismart.com.ng', 
+      'https://uni-smart-backend.onrender.com/health'
+    ];
+
+    const performPing = async () => {
+      try {
+        await Promise.all(
+          urls.map(url => 
+            fetch(url, { mode: 'no-cors', cache: 'no-store' })
+          )
+        );
+        console.log(`📡 Render Keep-Alive: Pings sent at ${new Date().toLocaleTimeString()}`);
+      } catch (error) {
+        console.error("📡 Keep-alive ping failed:", error);
+      }
+    };
+
+    // Ping immediately on load, then every 12 minutes
+    performPing();
+    const interval = setInterval(performPing, 12 * 60 * 1000);
+
+    return () => clearInterval(interval);
+  }, []);
+  // ------------------------------
+
   const isDashboard = 
     pathname?.startsWith("/student") || 
     pathname?.startsWith("/lecturer") || 
