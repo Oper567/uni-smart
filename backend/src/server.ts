@@ -23,7 +23,6 @@ import studentRoutes from './routes/student.routes.js';
 const app = express();
 
 // 4. MIDDLEWARE
-
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
@@ -64,7 +63,7 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Cache-Control'],
   exposedHeaders: ['Content-Disposition', 'Content-Type', 'Content-Length']
 }));
 
@@ -78,46 +77,43 @@ app.use('/api/student', studentRoutes);
 
 app.post('/api/attendance/mark', authenticate, authorizeRole(['STUDENT']), markAttendance);
 
-// Enhanced Health Check - FIXED TS ERROR
 app.get('/health', async (req, res) => {
   try {
     await prisma.$queryRaw`SELECT 1`; 
-    res.status(200).json({ 
-      status: 'System Operational 🚀',
-      database: 'Connected 🐘',
-      timestamp: new Date().toISOString()
-    });
+    res.status(200).json({ status: 'System Operational 🚀' });
   } catch (error: unknown) {
-    // Check if error is an instance of Error to access .message safely
     const errorMessage = error instanceof Error ? error.message : 'Unknown database error';
-    console.error('❌ Database Health Check Failed:', errorMessage);
-    
-    res.status(503).json({ 
-      status: 'Maintenance Mode 🛠️', 
-      database: 'Disconnected',
-      error: process.env.NODE_ENV === 'development' ? errorMessage : undefined
-    });
+    res.status(503).json({ status: 'Maintenance Mode 🛠️', error: errorMessage });
   }
 });
 
-// 6. SERVER INITIALIZATION
+// 6. RENDER AUTO-PING HACK
+const RENDER_URL = 'https://uni-smart-backend.onrender.com/health'; 
+
+const keepAlive = () => {
+  setInterval(async () => {
+    try {
+      const response = await fetch(RENDER_URL);
+      console.log(`📡 Auto-Ping: Status ${response.status} at ${new Date().toISOString()}`);
+    } catch (err) {
+      console.error('📡 Auto-Ping Failed:', err);
+    }
+  }, 14 * 60 * 1000); // Ping every 14 minutes
+};
+
+// 7. SERVER INITIALIZATION
 const PORT = process.env.PORT || 5001;
 
 const server = app.listen(Number(PORT), '0.0.0.0', () => {
-  console.log(`
-    🚀 SYSTEM ONLINE
-    ✅ Server running on port ${PORT}
-    🐘 Database: Connected
-    🔐 Security: CORS & Helmet configured for unismart.com.ng
-  `);
+  console.log(`🚀 Server running on port ${PORT}`);
+  // Start the keep-alive loop
+  if (process.env.NODE_ENV === 'production') {
+    keepAlive();
+  }
 });
 
-// FIXED TS ERROR: Using NodeJS.ErrnoException to access .code
 server.on('error', (err: NodeJS.ErrnoException) => {
   if (err.code === 'EADDRINUSE') {
-    console.error(`❌ Port ${PORT} is already in use.`);
     process.exit(1);
-  } else {
-    console.error('🔥 Server Error:', err);
   }
 });
