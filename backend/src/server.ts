@@ -44,6 +44,7 @@ app.use(helmet({
   }
 }));
 
+// ✅ CORS Whitelist for unismart.com.ng
 const allowedOrigins = [
   'http://localhost:3000',
   'https://uni-smart.onrender.com',
@@ -63,8 +64,16 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Cache-Control'],
-  exposedHeaders: ['Content-Disposition', 'Content-Type', 'Content-Length']
+  allowedHeaders: [
+    'Content-Type', 
+    'Authorization', 
+    'X-Requested-With', 
+    'Cache-Control', 
+    'Accept'
+  ],
+  exposedHeaders: ['Content-Disposition', 'Content-Type', 'Content-Length'],
+  preflightContinue: false,
+  optionsSuccessStatus: 204
 }));
 
 app.use(express.json()); 
@@ -98,7 +107,7 @@ const keepAlive = () => {
     } catch (err) {
       console.error('📡 Auto-Ping Failed:', err);
     }
-  }, 14 * 60 * 1000); // Ping every 14 minutes
+  }, 13 * 60 * 1000); // Ping every 13 minutes
 };
 
 // 7. SERVER INITIALIZATION
@@ -106,8 +115,9 @@ const PORT = process.env.PORT || 5001;
 
 const server = app.listen(Number(PORT), '0.0.0.0', () => {
   console.log(`🚀 Server running on port ${PORT}`);
-  // Start the keep-alive loop
-  if (process.env.NODE_ENV === 'production') {
+  
+  // Start the keep-alive loop in production
+  if (process.env.NODE_ENV === 'production' || process.env.RENDER) {
     keepAlive();
   }
 });
