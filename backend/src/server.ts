@@ -24,6 +24,8 @@ const app = express();
 
 // 4. MIDDLEWARE
 app.use(helmet({
+  // ✅ FIX: Allows cross-origin pings/health checks to be read by the browser
+  crossOriginResourcePolicy: { policy: "cross-origin" }, 
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
@@ -88,6 +90,7 @@ app.post('/api/attendance/mark', authenticate, authorizeRole(['STUDENT']), markA
 
 app.get('/health', async (req, res) => {
   try {
+    // ✅ This query will fail (503) until the ENETUNREACH/IPv6 issue is fixed in Render Env
     await prisma.$queryRaw`SELECT 1`; 
     res.status(200).json({ status: 'System Operational 🚀' });
   } catch (error: unknown) {
