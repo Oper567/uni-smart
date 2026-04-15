@@ -36,7 +36,7 @@ export const register = async (req: Request, res: Response) => {
           email: normalizedEmail,
           name,
           role: normalizedRole,
-          password: hashedPassword,
+          passwordHash: hashedPassword,
           department,
         },
       });
